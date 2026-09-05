@@ -10,7 +10,7 @@ student_check.py
    - WARNING : 경기는 되지만 규칙 위반이거나 손해를 보게 되는 부분 (예: 전역 random 사용)
    - INFO    : 알아두면 좋은 주의사항
 
-2) 스모크 테스트 (smoke_test) — 실제로 decide_lineup()을 공격/수비 각각 1번씩 호출해서
+2) 스모크 테스트 (smoke_test) — 실제로 decide_lineup()을 10명 선발(수비) → 선발 9명 타순(공격) 순서로 호출해서
    ① 예외 없이 끝나는지 ② 제한시간 안에 들어오는지 ③ 반환한 명단이 규칙에 맞는지 확인한다.
    실행은 student_api.run_student_decision()을 그대로 쓰므로 실제 경기와 동일한 격리 환경이다.
 """
@@ -262,37 +262,43 @@ def smoke_test(path: str, league: LeagueData, team_name: str, opponent_name: Opt
     my_df = team_status_dataframe(league, my, rs)
     opp_df = team_status_dataframe(league, opp, rs)
 
+    from .student_api import default_defense_lineup
+    selected = None
+    opponent_lineup = default_defense_lineup(opp)
     out = {"team": team_name, "opponent": opponent_name, "cases": [], "ok": True}
-    for is_offense in (True, False):
-        label = "공격(타순 9명)" if is_offense else "수비(10명)"
+    # 경기와 같은 순서: 10명 선발 후 그 선수들의 타순만 검사한다.
+    for is_offense in (False, True):
+        label = "공격(선발 9명 타순)" if is_offense else "선발(투수 포함 10명)"
         if is_offense:
-            mu = matchup_dataframe(league, [opp.pitcher_pcodes[0]], my.batter_pcodes)
-            ctx = {"inning": 1, "half": "top", "my_score": 0, "opponent_score": 0, "outs": 0,
-                   "batting_order_start_index": 0, "my_prev_lineup": None, "opponent_prev_lineup": None,
-                   "opp_pitcher_pcode": opp.pitcher_pcodes[0],
-                   "opp_catcher_pcode": opp.roster_by_position["포수"][0],
-                   "time_budget_sec": timeout_sec}
+            active = selected or default_defense_lineup(my)
+            input_team = my_df[my_df["pCode"].isin(active)].copy()
+            mu = matchup_dataframe(league, [opponent_lineup[9]], active[:9])
         else:
+            active = None
+            input_team = my_df
             mu = matchup_dataframe(league, my.pitcher_pcodes, opp.batter_pcodes)
-            ctx = {"inning": 1, "half": "top", "my_score": 0, "opponent_score": 0, "outs": 0,
-                   "batting_order_start_index": 0, "my_prev_lineup": None, "opponent_prev_lineup": None,
-                   "opp_pitcher_pcode": None, "opp_catcher_pcode": None,
-                   "time_budget_sec": timeout_sec}
-
+        ctx = {"inning": 1, "half": "bottom" if is_offense else "top",
+               "my_score": 0, "opponent_score": 0, "outs": 0,
+               "batting_order_start_index": 0, "my_prev_lineup": None,
+               "opponent_prev_lineup": opponent_lineup if is_offense else None,
+               "opp_pitcher_pcode": opponent_lineup[9] if is_offense else None,
+               "opp_catcher_pcode": opponent_lineup[7] if is_offense else None,
+               "time_budget_sec": timeout_sec, "selected_lineup": active}
         res = run_student_decision(path, f"smoke_{'off' if is_offense else 'def'}",
-                                    is_offense=is_offense, my_team=my_df, opponent_team=opp_df,
+                                    is_offense=is_offense, my_team=input_team, opponent_team=opp_df,
                                     matchups=mu, context=ctx, rng=random.Random(12345),
                                     timeout_sec=timeout_sec)
         case = {"label": label, "status": res.status, "elapsed_sec": round(res.elapsed, 3),
                 "error": res.error, "detail": None}
         if res.status == "ok":
-            problem = validate_lineup(league, my, res.lineup, is_offense)
+            problem = validate_lineup(league, my, res.lineup, is_offense, active)
             if problem:
-                case["status"] = "invalid"
-                case["error"] = problem
+                case["status"], case["error"] = "invalid", problem
             else:
-                names = [league.player(p)["shortName"] for p in res.lineup]
-                case["detail"] = " / ".join(names)
+                normalized = [int(p) for p in res.lineup]
+                if not is_offense:
+                    selected = normalized
+                case["detail"] = " / ".join(league.player(p)["shortName"] for p in normalized)
         if case["status"] != "ok":
             out["ok"] = False
         out["cases"].append(case)

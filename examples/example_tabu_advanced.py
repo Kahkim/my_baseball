@@ -1,16 +1,20 @@
-"""개선형 Tabu Search: 공격 후보 교체 + 타순 + 수비 체력 배분.
+"""개선형 Tabu Search: 출전 10명 선발 + 타순 + 공수 체력 배분.
 
 이 파일 하나만 제출할 수 있습니다. 엔진 import, 파일 접근, 전역 난수 없이
 전달된 DataFrame과 rng만 사용합니다. 평가식은 실제 득점의 근사이며 승리를 보장하지 않습니다.
 
 기존 예제와의 차이:
-1. 공격 9명을 고정하지 않고 벤치 교체와 타순 교환을 함께 탐색합니다.
-2. 수비 명단과 공격 명단이 독립이라는 규칙에 맞춰 타격 기여를 수비 점수에 더하지 않습니다.
+1. 선발 단계에서 벤치 교체·수비 배치를, 공격 단계에서 고정 9명의 타순을 탐색합니다.
+2. 선발 9명이 공수를 함께 맡으므로 타격 기여와 수비 비용을 함께 평가합니다.
 3. 투수의 pitch_count/target으로 한 이닝 중의 능력을 예측합니다.
 4. 되돌아가는 배정을 타부로 기록하고, 최고해를 개선하면 열망 기준으로 허용합니다.
 
 반복 수는 고정하므로 같은 입력/rng에서 결과가 재현됩니다.
 상수는 학습용 가정이며, 팀별 기록과 맞대결 표본을 이용해 보정합니다.
+
+이닝 선발 규칙: 수비 호출에서 투수 포함 10명을 선발합니다. 공격 호출의 my_team은 그 10명만
+포함하므로, 투수 제외 9명의 타순만 정하세요. context["selected_lineup"]은 수비 자리 순서의
+선발 10명입니다. 공수교대 때 선수·투수 교체는 없으며, 다음 이닝 시작에 다시 선발합니다.
 """
 import math
 
@@ -164,7 +168,7 @@ def decide_lineup(is_offense, my_team, opponent_team, matchups, context, rng):
             lineup[(start + turn) % 9] = p
         return lineup
 
-    # 좋은 타자를 수비에 넣는 보너스 대신, 향후 공격에 쓸 체력을 잃는 비용을 계산합니다.
+    # 선발한 9명이 공격도 맡으므로 타격 기여와 수비 체력 손실을 함께 계산합니다.
     value_now = {p: _production(rates[p], _mult(row))[0] for p, row in bat.items()}
     best_nine = sorted(value_now.values(), reverse=True)[:9]
     cutoff = best_nine[-1]
@@ -177,7 +181,7 @@ def decide_lineup(is_offense, my_team, opponent_team, matchups, context, rng):
         scores = {}
         for p, row in bat.items():
             if want == "DH":
-                scores[p] = 0.0
+                scores[p] = 0.55 * value_now[p]
                 continue
             future_loss = max(value_now[p] - _production(rates[p], _mult(row, 4))[0], 0)
             relevance = min(1.0, (value_now[p] / max(cutoff, 0.01)) ** 4)
@@ -185,7 +189,7 @@ def decide_lineup(is_offense, my_team, opponent_team, matchups, context, rng):
             base_error = 0.022 if want == "내야수" else 0.014
             mismatch = 1.0 if row["position"] == want else 1.5
             error_cost = 4.0 * FIELD_SHARES[slot] * base_error * mismatch * (2 - _mult(row, 4))
-            scores[p] = -error_cost - 1.5 * conserve * relevance * future_loss
+            scores[p] = 0.55 * (value_now[p] - future_loss) - error_cost - 0.45 * conserve * relevance * future_loss
         slot_scores.append(scores)
     pool = sorted(bat)
     initial, used = [], set()

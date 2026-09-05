@@ -41,16 +41,22 @@ def check_example(ld):
             rt = state.get(p)
             rt.swing_count = 30.0
             rt.pitch_count = 100.0
-        for offense in (True, False):
+        selected = None
+        for offense in (False, True):
             kwargs = dict(is_offense=offense, my_team=team_status_dataframe(ld, team, state),
                 opponent_team=team_status_dataframe(ld, opp, state), matchups=matchup_dataframe(ld, [], []),
                 context={"inning": 9, "half": "bottom", "batting_order_start_index": 7,
                          "opp_pitcher_pcode": opp.pitcher_pcodes[0], "time_budget_sec": 10.0})
+            kwargs["context"]["selected_lineup"] = selected
+            if offense:
+                kwargs["my_team"] = kwargs["my_team"][kwargs["my_team"]["pCode"].isin(selected)].copy()
             module = load_student_module(str(NEW), "advanced_check")
             first = module.decide_lineup(**kwargs, rng=random.Random(17))
             second = module.decide_lineup(**kwargs, rng=random.Random(17))
             assert first == second, name
-            assert validate_lineup(ld, team, first, offense) is None, (name, first)
+            assert validate_lineup(ld, team, first, offense, selected) is None, (name, first)
+            if not offense:
+                selected = first
         print(f"CHECK {name}: fresh subprocess + tired deterministic lineups passed", flush=True)
     return reports
 
@@ -108,7 +114,7 @@ def main():
     wins = sum(r["winner"] == "advanced" for r in results)
     losses = sum(r["winner"] == "original" for r in results)
     draws = len(results) - wins - losses
-    summary = dict(mode="isolated" if args.isolated else "trusted in-process (no hard timeout)",
+    summary = dict(lineup_policy="locked_roster_10", mode="isolated" if args.isolated else "trusted in-process (no hard timeout)",
         seeds_per_pair=args.seeds, seed_start=args.seed_start, pairs=PAIRS[:args.pairs],
         games=len(results), wins=wins, draws=draws, losses=losses,
         point_rate=(wins + 0.5 * draws) / len(results) if results else None,

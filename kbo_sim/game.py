@@ -8,14 +8,11 @@ game.py
   (B) 스텝 실행  : Game.play_next_half() - 하프이닝 하나만 진행하고 즉시 반환 (라이브 중계용)
 두 방식은 같은 상태머신을 쓰므로 같은 시드면 결과가 완전히 동일하다.
 
-하프이닝마다:
-  1) 수비팀 학생 알고리즘 호출 (is_offense=False) -> 수비 10명 결정 (마지막이 투수)
-  2) 공격팀 학생 알고리즘 호출 (is_offense=True, 방금 정해진 상대 투수/포수 정보 포함)
-     -> 타순 9명 결정
-  3) 수비 진출 시 야수 체력(스윙환산 3~5) 1회 소모
-  4) batting_order_start_index부터 타순을 순회하며 3아웃까지 타석 진행
-  5) 10점 이상 차이나면 콜드게임 (mercy_min_inning 이닝 이후)
-  6) 매 알고리즘 호출의 실행시간을 기록 (스코어보드 하단 표시용)
+이닝 시작에 두 팀의 출전 10명(마지막은 투수)을 선발한 뒤, 각 팀 선발 9명의 타순을 정한다.
+총 4회 호출하며, 공수교대 때 재호출하거나 선수를 바꾸지 않는다.
+각 하프이닝에서는 수비 진출 체력을 소모하고, 이어지는 타순 위치부터 3아웃까지 진행한다.
+끝내기·콜드게임·9회말 생략 조건을 확인하고 다음 공격 또는 다음 이닝으로 넘어간다.
+알고리즘 호출마다 실행시간을 기록하며, 실패한 타순도 이번 선발 9명 안에서 대체한다.
 
 학생 알고리즘이 여러 번 호출되어도(같은 상황 재호출 등) 항상 안전하도록, 팀별 상태
 (GameRosterState의 체력, 타순 포인터)는 이닝이 바뀌어도 계속 유지된다.
@@ -33,7 +30,7 @@ from .data_pipeline import LeagueData
 from .defense import DEFENSE_SLOT_GROUPS
 from .models import GameRosterState, Team
 from .rng import GameRNG
-from .student_api import (default_defense_lineup, default_offense_lineup, matchup_dataframe,
+from .student_api import (default_defense_lineup, matchup_dataframe,
                            run_student_decision, team_status_dataframe, validate_lineup)
 
 MERCY_MARGIN = 10          # "10점이상이면 이닝 콜드게임 선언" (스펙 명시값)
@@ -146,11 +143,15 @@ class Game:
 
     # ------------------------------------------------------------------
     def _decide(self, team: Team, opponent: Team, is_offense: bool, inning: int, half: str,
-                start_index: int, opp_pitcher: Optional[int], opp_catcher: Optional[int]) -> List[int]:
+                start_index: int, opp_pitcher: Optional[int], opp_catcher: Optional[int],
+                selected_lineup: Optional[List[int]] = None) -> List[int]:
         my_df = team_status_dataframe(self.league, team, self.roster_state)
         opp_df = team_status_dataframe(self.league, opponent, self.roster_state)
         if is_offense:
-            mu_df = matchup_dataframe(self.league, [opp_pitcher] if opp_pitcher else [], team.batter_pcodes)
+            if selected_lineup is None:
+                raise ValueError("공격 타순을 정하기 전에 이닝 출전 10명을 선발해야 합니다")
+            my_df = my_df[my_df["pCode"].isin(selected_lineup)].copy()
+            mu_df = matchup_dataframe(self.league, [opp_pitcher] if opp_pitcher else [], selected_lineup[:9])
         else:
             mu_df = matchup_dataframe(self.league, team.pitcher_pcodes, opponent.batter_pcodes)
 
@@ -164,6 +165,7 @@ class Game:
             "opp_pitcher_pcode": opp_pitcher if is_offense else None,
             "opp_catcher_pcode": opp_catcher if is_offense else None,
             "time_budget_sec": self.timeout_sec,
+            "selected_lineup": list(selected_lineup) if selected_lineup is not None else None,
         }
         student_rng = self.grng.student_rng(f"{team.name}:{'off' if is_offense else 'def'}")
         module_name = f"student_{uuid.uuid4().hex[:8]}"
@@ -179,7 +181,7 @@ class Game:
         err = outcome.error
         if status == "ok":
             try:
-                problem = validate_lineup(self.league, team, lineup, is_offense)
+                problem = validate_lineup(self.league, team, lineup, is_offense, selected_lineup)
             except Exception as e:  # noqa: BLE001 - 검증 중 무슨 예외가 나든 경기가 멈추면 안 됨
                 problem = f"명단 검증 중 오류: {type(e).__name__}: {e}"
             if problem:
@@ -191,15 +193,15 @@ class Game:
         if lineup is None:
             fallback = self.prev_lineup[team.name][role]
             try:
-                fallback_ok = bool(fallback) and validate_lineup(self.league, team, fallback, is_offense) is None
+                fallback_ok = bool(fallback) and validate_lineup(self.league, team, fallback, is_offense, selected_lineup) is None
             except Exception:  # noqa: BLE001
                 fallback_ok = False
             if fallback_ok:
                 lineup = fallback
                 fallback_src = "직전 라인업 재사용"
             else:
-                lineup = default_offense_lineup(team) if is_offense else default_defense_lineup(team)
-                fallback_src = "기본 출전(명단 순서상 앞쪽 선수)"
+                lineup = list(selected_lineup[:9]) if is_offense else default_defense_lineup(team)
+                fallback_src = "선발 9명 기본 타순" if is_offense else "기본 출전(명단 순서상 앞쪽 선수)"
             self._emit({"type": "algo_fallback", "inning": inning, "half": half, "team": team.name,
                         "role": role, "status": status, "error": err, "fallback": fallback_src,
                         "text": f"[{team.name}] 알고리즘 {status} ({err}) -> {fallback_src}"})
@@ -215,7 +217,7 @@ class Game:
         self._emit({"type": "lineup_decision", "inning": inning, "half": half, "team": team.name,
                     "role": role, "status": status, "elapsed_sec": round(elapsed, 3), "lineup": lineup,
                     "text": f"[{inning}회{'초' if half=='top' else '말'}] {team.name} "
-                            f"{'공격' if is_offense else '수비'} 라인업 결정 ({elapsed:.2f}초)"})
+                            f"{'선발 9명 타순' if is_offense else '출전 10명·수비 배치'} 결정 ({elapsed:.2f}초)"})
         return lineup
 
     # ------------------------------------------------------------------
@@ -238,12 +240,12 @@ class Game:
         # (1) 두 팀의 수비 라인업을 먼저 확정해 투수/포수를 정한다
         home_def = self._decide(self.home, self.away, False, inning, "top", start_top, None, None)
         away_def = self._decide(self.away, self.home, False, inning, "bottom", start_bot, None, None)
-        # (2) 그 정보를 담아 두 팀의 공격 타순을 정한다
+        # (2) 선발한 10명을 고정하고, 투수를 제외한 동일한 9명의 타순만 정한다
         #     (초 공격팀은 홈팀 투수를, 말 공격팀은 원정팀 투수를 상대한다)
         away_off = self._decide(self.away, self.home, True, inning, "top", start_top,
-                                 home_def[9], home_def[7])
+                                 home_def[9], home_def[7], away_def)
         home_off = self._decide(self.home, self.away, True, inning, "bottom", start_bot,
-                                 away_def[9], away_def[7])
+                                 away_def[9], away_def[7], home_def)
 
         lineups = {
             self.home.name: {"offense": home_off, "defense": home_def, "start_idx": start_bot},
@@ -300,6 +302,7 @@ class Game:
             "score": dict(self.score),
             "batting_order_start_index": start_idx,
             "batting_order": self._lineup_detail(batting_order, True, start_idx),
+            "batting_roster": self._lineup_detail(lineups[batting.name]["defense"], False),
             "defense": self._lineup_detail(defense_lineup, False),
             "decisions": {
                 "offense": self._last_decisions.get(f"{batting.name}|offense"),

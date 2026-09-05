@@ -1,0 +1,505 @@
+{
+  "lineup_policy": "locked_roster_10",
+  "mode": "trusted in-process (no hard timeout)",
+  "seeds_per_pair": 2,
+  "seed_start": 910000,
+  "pairs": [
+    [
+      "삼성",
+      "KT"
+    ],
+    [
+      "LG",
+      "KIA"
+    ],
+    [
+      "두산",
+      "NC"
+    ],
+    [
+      "롯데",
+      "SSG"
+    ],
+    [
+      "한화",
+      "키움"
+    ]
+  ],
+  "games": 20,
+  "wins": 8,
+  "draws": 2,
+  "losses": 10,
+  "point_rate": 0.45,
+  "run_difference": 10,
+  "fallbacks": {
+    "advanced": 0,
+    "original": 0
+  },
+  "timing": {
+    "advanced": {
+      "calls": 360,
+      "mean_sec": 0.028263055549986246,
+      "max_sec": 0.06310259969905019
+    },
+    "original": {
+      "calls": 360,
+      "mean_sec": 0.019757270256781742,
+      "max_sec": 0.044137599878013134
+    }
+  },
+  "elapsed_sec": 21.662818199954927,
+  "smoke_checks": [
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "삼성",
+        "opponent": "KT",
+        "cases": [
+          {
+            "label": "선발(투수 포함 10명)",
+            "status": "ok",
+            "elapsed_sec": 0.929,
+            "error": null,
+            "detail": "디아즈 / 김영웅 / 이창용 / 전병우 / 김태근 / 김성윤 / 박승규 / 구자욱 / 이재현 / 후라도"
+          },
+          {
+            "label": "공격(선발 9명 타순)",
+            "status": "ok",
+            "elapsed_sec": 0.799,
+            "error": null,
+            "detail": "김성윤 / 구자욱 / 디아즈 / 전병우 / 박승규 / 김태근 / 이창용 / 이재현 / 김영웅"
+          }
+        ],
+        "ok": true
+      }
+    },
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "KT",
+        "opponent": "삼성",
+        "cases": [
+          {
+            "label": "선발(투수 포함 10명)",
+            "status": "ok",
+            "elapsed_sec": 0.815,
+            "error": null,
+            "detail": "이호연 / 허경민 / 박민석 / 황재균 / 김병준 / 스티븐슨 / 로하스 / 안현민 / 김건형 / 고영표"
+          },
+          {
+            "label": "공격(선발 9명 타순)",
+            "status": "ok",
+            "elapsed_sec": 0.826,
+            "error": null,
+            "detail": "안현민 / 이호연 / 박민석 / 스티븐슨 / 김건형 / 로하스 / 김병준 / 허경민 / 황재균"
+          }
+        ],
+        "ok": true
+      }
+    },
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "LG",
+        "opponent": "삼성",
+        "cases": [
+          {
+            "label": "선발(투수 포함 10명)",
+            "status": "ok",
+            "elapsed_sec": 0.77,
+            "error": null,
+            "detail": "문보경 / 오스틴 / 박동원 / 신민재 / 김현종 / 홍창기 / 문성주 / 김준태 / 김현수 / 치리노스"
+          },
+          {
+            "label": "공격(선발 9명 타순)",
+            "status": "ok",
+            "elapsed_sec": 0.803,
+            "error": null,
+            "detail": "오스틴 / 김현수 / 문보경 / 김준태 / 김현종 / 신민재 / 박동원 / 문성주 / 홍창기"
+          }
+        ],
+        "ok": true
+      }
+    },
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "KIA",
+        "opponent": "삼성",
+        "cases": [
+          {
+            "label": "선발(투수 포함 10명)",
+            "status": "ok",
+            "elapsed_sec": 0.832,
+            "error": null,
+            "detail": "김선빈 / 김도영 / 위즈덤 / 윤도현 / 김호령 / 박정우 / 최형우 / 주효상 / 나성범 / 올러"
+          },
+          {
+            "label": "공격(선발 9명 타순)",
+            "status": "ok",
+            "elapsed_sec": 0.832,
+            "error": null,
+            "detail": "최형우 / 김도영 / 김선빈 / 나성범 / 주효상 / 위즈덤 / 김호령 / 박정우 / 윤도현"
+          }
+        ],
+        "ok": true
+      }
+    },
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "두산",
+        "opponent": "삼성",
+        "cases": [
+          {
+            "label": "선발(투수 포함 10명)",
+            "status": "ok",
+            "elapsed_sec": 0.81,
+            "error": null,
+            "detail": "안재석 / 양의지 / 박지훈 / 김민혁 / 김재환 / 홍성호 / 케이브 / 김성재 / 박민준 / 잭로그"
+          },
+          {
+            "label": "공격(선발 9명 타순)",
+            "status": "ok",
+            "elapsed_sec": 0.892,
+            "error": null,
+            "detail": "박지훈 / 양의지 / 안재석 / 홍성호 / 케이브 / 김재환 / 김성재 / 박민준 / 김민혁"
+          }
+        ],
+        "ok": true
+      }
+    },
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "NC",
+        "opponent": "삼성",
+        "cases": [
+          {
+            "label": "선발(투수 포함 10명)",
+            "status": "ok",
+            "elapsed_sec": 0.907,
+            "error": null,
+            "detail": "최정원 / 김주원 / 박민우 / 김휘집 / 권희동 / 박건우 / 김범준 / 김정호 / 박영빈 / 라일리"
+          },
+          {
+            "label": "공격(선발 9명 타순)",
+            "status": "ok",
+            "elapsed_sec": 0.949,
+            "error": null,
+            "detail": "박건우 / 김주원 / 박민우 / 김정호 / 권희동 / 박영빈 / 최정원 / 김휘집 / 김범준"
+          }
+        ],
+        "ok": true
+      }
+    },
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "롯데",
+        "opponent": "삼성",
+        "cases": [
+          {
+            "label": "선발(투수 포함 10명)",
+            "status": "ok",
+            "elapsed_sec": 0.961,
+            "error": null,
+            "detail": "한태양 / 박찬형 / 이태경 / 노진혁 / 레이예스 / 윤동희 / 전준우 / 박건우 / 박재엽 / 감보아"
+          },
+          {
+            "label": "공격(선발 9명 타순)",
+            "status": "ok",
+            "elapsed_sec": 0.93,
+            "error": null,
+            "detail": "박찬형 / 레이예스 / 윤동희 / 박재엽 / 박건우 / 전준우 / 한태양 / 이태경 / 노진혁"
+          }
+        ],
+        "ok": true
+      }
+    },
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "SSG",
+        "opponent": "삼성",
+        "cases": [
+          {
+            "label": "선발(투수 포함 10명)",
+            "status": "ok",
+            "elapsed_sec": 1.083,
+            "error": null,
+            "detail": "박성한 / 최정 / 김태윤 / 석정우 / 에레디아 / 정현승 / 한유섬 / 이율예 / 류효승 / 앤더슨"
+          },
+          {
+            "label": "공격(선발 9명 타순)",
+            "status": "ok",
+            "elapsed_sec": 0.786,
+            "error": null,
+            "detail": "에레디아 / 류효승 / 최정 / 김태윤 / 이율예 / 정현승 / 박성한 / 한유섬 / 석정우"
+          }
+        ],
+        "ok": true
+      }
+    },
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "한화",
+        "opponent": "삼성",
+        "cases": [
+          {
+            "label": "선발(투수 포함 10명)",
+            "status": "ok",
+            "elapsed_sec": 0.791,
+            "error": null,
+            "detail": "이승현 / 박정현 / 채은성 / 노시환 / 문현빈 / 플로리얼 / 리베라토 / 최재훈 / 장규현 / 폰세"
+          },
+          {
+            "label": "공격(선발 9명 타순)",
+            "status": "ok",
+            "elapsed_sec": 0.784,
+            "error": null,
+            "detail": "리베라토 / 노시환 / 이승현 / 장규현 / 문현빈 / 채은성 / 최재훈 / 플로리얼 / 박정현"
+          }
+        ],
+        "ok": true
+      }
+    },
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "키움",
+        "opponent": "삼성",
+        "cases": [
+          {
+            "label": "선발(투수 포함 10명)",
+            "status": "ok",
+            "elapsed_sec": 0.82,
+            "error": null,
+            "detail": "이주형(58) / 이승원 / 이재상 / 최주환 / 송성문 / 변상권 / 이주형(2) / 이원석 / 김병휘 / 알칸타라"
+          },
+          {
+            "label": "공격(선발 9명 타순)",
+            "status": "ok",
+            "elapsed_sec": 0.796,
+            "error": null,
+            "detail": "송성문 / 이재상 / 김병휘 / 이주형(58) / 최주환 / 이승원 / 이원석 / 변상권 / 이주형(2)"
+          }
+        ],
+        "ok": true
+      }
+    }
+  ],
+  "results": [
+    {
+      "seed": 910000,
+      "home": "삼성",
+      "away": "KT",
+      "advanced_home": true,
+      "advanced_runs": 11,
+      "original_runs": 2,
+      "winner": "advanced"
+    },
+    {
+      "seed": 910000,
+      "home": "삼성",
+      "away": "KT",
+      "advanced_home": false,
+      "advanced_runs": 2,
+      "original_runs": 4,
+      "winner": "original"
+    },
+    {
+      "seed": 910977,
+      "home": "삼성",
+      "away": "KT",
+      "advanced_home": true,
+      "advanced_runs": 2,
+      "original_runs": 0,
+      "winner": "advanced"
+    },
+    {
+      "seed": 910977,
+      "home": "삼성",
+      "away": "KT",
+      "advanced_home": false,
+      "advanced_runs": 3,
+      "original_runs": 0,
+      "winner": "advanced"
+    },
+    {
+      "seed": 920007,
+      "home": "LG",
+      "away": "KIA",
+      "advanced_home": true,
+      "advanced_runs": 1,
+      "original_runs": 7,
+      "winner": "original"
+    },
+    {
+      "seed": 920007,
+      "home": "LG",
+      "away": "KIA",
+      "advanced_home": false,
+      "advanced_runs": 7,
+      "original_runs": 3,
+      "winner": "advanced"
+    },
+    {
+      "seed": 920984,
+      "home": "LG",
+      "away": "KIA",
+      "advanced_home": true,
+      "advanced_runs": 9,
+      "original_runs": 1,
+      "winner": "advanced"
+    },
+    {
+      "seed": 920984,
+      "home": "LG",
+      "away": "KIA",
+      "advanced_home": false,
+      "advanced_runs": 10,
+      "original_runs": 3,
+      "winner": "advanced"
+    },
+    {
+      "seed": 930014,
+      "home": "두산",
+      "away": "NC",
+      "advanced_home": true,
+      "advanced_runs": 1,
+      "original_runs": 0,
+      "winner": "advanced"
+    },
+    {
+      "seed": 930014,
+      "home": "두산",
+      "away": "NC",
+      "advanced_home": false,
+      "advanced_runs": 4,
+      "original_runs": 7,
+      "winner": "original"
+    },
+    {
+      "seed": 930991,
+      "home": "두산",
+      "away": "NC",
+      "advanced_home": true,
+      "advanced_runs": 6,
+      "original_runs": 6,
+      "winner": null
+    },
+    {
+      "seed": 930991,
+      "home": "두산",
+      "away": "NC",
+      "advanced_home": false,
+      "advanced_runs": 5,
+      "original_runs": 6,
+      "winner": "original"
+    },
+    {
+      "seed": 940021,
+      "home": "롯데",
+      "away": "SSG",
+      "advanced_home": true,
+      "advanced_runs": 1,
+      "original_runs": 3,
+      "winner": "original"
+    },
+    {
+      "seed": 940021,
+      "home": "롯데",
+      "away": "SSG",
+      "advanced_home": false,
+      "advanced_runs": 2,
+      "original_runs": 3,
+      "winner": "original"
+    },
+    {
+      "seed": 940998,
+      "home": "롯데",
+      "away": "SSG",
+      "advanced_home": true,
+      "advanced_runs": 1,
+      "original_runs": 3,
+      "winner": "original"
+    },
+    {
+      "seed": 940998,
+      "home": "롯데",
+      "away": "SSG",
+      "advanced_home": false,
+      "advanced_runs": 8,
+      "original_runs": 2,
+      "winner": "advanced"
+    },
+    {
+      "seed": 950028,
+      "home": "한화",
+      "away": "키움",
+      "advanced_home": true,
+      "advanced_runs": 2,
+      "original_runs": 4,
+      "winner": "original"
+    },
+    {
+      "seed": 950028,
+      "home": "한화",
+      "away": "키움",
+      "advanced_home": false,
+      "advanced_runs": 0,
+      "original_runs": 8,
+      "winner": "original"
+    },
+    {
+      "seed": 951005,
+      "home": "한화",
+      "away": "키움",
+      "advanced_home": true,
+      "advanced_runs": 4,
+      "original_runs": 4,
+      "winner": null
+    },
+    {
+      "seed": 951005,
+      "home": "한화",
+      "away": "키움",
+      "advanced_home": false,
+      "advanced_runs": 2,
+      "original_runs": 5,
+      "winner": "original"
+    }
+  ]
+}

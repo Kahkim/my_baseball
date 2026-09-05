@@ -749,8 +749,10 @@ function lineupTable(info){
   const note = isOff
     ? `<div class="lineup-sub">타순 시작: <b style="color:var(--accent)">${info.start_index+1}번</b>부터 (지난 이닝 이어서)</div>`
     : `<div class="lineup-sub">투수 <b>${esc(nameOf(info.defense[9]))}</b> · 누적 ${info.defense[9].pitch_count}구</div>`;
+  const fixedPitcher = isOff && info.defense
+    ? `<div class="lineup-sub">고정 선발 투수: <b>${esc(nameOf(info.defense[9]))}</b> (타격 제외) · 공수교대 시 교체 없음</div>` : '';
   const mism = !isOff ? info.defense.filter(p=>p.mismatch).length : 0;
-  return note + `<table class="lu">${rows}</table>` +
+  return note + fixedPitcher + `<table class="lu">${rows}</table>` +
     (mism?`<div class="legend">⚠ 포지션 불일치 ${mism}명 — 해당 선수 관여 수비의 실책 확률 +50%</div>`:'');
 }
 
@@ -820,7 +822,7 @@ function applyEvent(ev){
       S.curInning = ev.inning; S.curHalf = 'top';
       const away = S.game.away.name, home = S.game.home.name;
       S.curBatting = away; S.curFielding = home;
-      S.lineups[away] = {role:'offense', batting_order:ev.teams[away].offense, defense:null,
+      S.lineups[away] = {role:'offense', batting_order:ev.teams[away].offense, defense:ev.teams[away].defense,
                           start_index:ev.teams[away].start_index};
       S.lineups[home] = {role:'defense', defense:ev.teams[home].defense, batting_order:null,
                           start_index:ev.teams[away].start_index};
@@ -835,7 +837,7 @@ function applyEvent(ev){
     }
     case 'half_start': {
       S.curBatting = ev.batting_team; S.curFielding = ev.fielding_team;
-      S.lineups[ev.batting_team] = {role:'offense', batting_order:ev.batting_order, defense:null,
+      S.lineups[ev.batting_team] = {role:'offense', batting_order:ev.batting_order, defense:ev.batting_roster || null,
                                      start_index:ev.batting_order_start_index};
       S.lineups[ev.fielding_team] = {role:'defense', defense:ev.defense, batting_order:null,
                                       start_index:ev.batting_order_start_index};
@@ -948,7 +950,7 @@ function resetGameView(state){
   // 새로고침 복구: 라인업만 뽑아둔 상태였으면 다음 동작은 '공격 진행'
   S.phase = (state.game && state.game.pending) ? 'play' : 'lineup';
   S.queue = []; S.timings = state.timings || [];
-  S.lineups = {}; S.inningRuns = {}; S.finishedGame = !!(state.game && state.game.finished);
+  S.inningLineups = null; S.lineups = {}; S.inningRuns = {}; S.finishedGame = !!(state.game && state.game.finished);
   S.curBatting = null; S.curFielding = null; S.curBatter = null; S.curOuts = 0; S.curBases = {};
   S.lastPlay = null; S.lastScore = {}; S.lastHits = {}; S.lastErrors = {};
   S.nextInning = state.game ? state.game.next_inning : 1;

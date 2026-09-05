@@ -19,7 +19,7 @@ is_offense : bool
     False면 "수비"입니다 (수비진 10명을 정해야 함).
 
 my_team : pandas.DataFrame
-    우리 팀 전체 선수(타자+투수) 데이터. 각 행 = 선수 1명. 실제 KBO 2025시즌 기록 컬럼들
+    수비 호출: 우리 팀 전체 선수(타자+투수). 공격 호출: 이번 이닝 선발 10명만. 각 행 = 선수 1명. 실제 KBO 2025시즌 기록 컬럼들
     (AVG, OPS, ERA, WHIP 등) + 이번 경기 진행 중 상태 컬럼이 합쳐져 있습니다:
       - pCode (진짜 키), displayId(표시용, "팀명+등번호+이름"), name, position, role('타자'/'투수')
       - health_pct : 0~100, 현재 체력 (100=쌩쌩, 0=탈진)
@@ -32,7 +32,7 @@ opponent_team : pandas.DataFrame
 
 matchups : pandas.DataFrame
     투수-타자 맞대결 통산 기록 (pitcherPCode, hitterPCode, AVG, PA, H, HR, SO ... 등).
-    공격 턴이면 "우리 타자 x 상대 투수", 수비 턴이면 "우리 투수 x 상대 타자(대략, 직전 라인업 기준)"
+    공격 턴이면 "선발 타자 9명 x 상대 투수", 수비 턴이면 "우리 전체 투수 x 상대 전체 타자"
     조합만 담겨 있습니다. 기록이 없는 조합은 그냥 이 표에 나타나지 않습니다 — 즉 없으면
     개인 스탯 기반으로 시뮬레이션 엔진이 알아서 처리하니, 학생 알고리즘은 이 표에 있는 것만
     참고하면 됩니다.
@@ -53,18 +53,19 @@ matchups : pandas.DataFrame
 
 context : dict
     {
-      "inning": int,                       # 현재 이닝 (1~9, 연장시 10+)
+      "inning": int,                       # 현재 이닝 (기본 1~9, 연장 없음)
       "half": "top" | "bottom",             # 이 명단이 사용될 하프이닝
       "my_score": int, "opponent_score": int,
       "outs": 0,                            # 하프이닝 시작 시점이므로 항상 0
       "batting_order_start_index": int,     # 0~8. 이번에 반환할 9명 리스트 중 몇 번 인덱스부터
                                              # 타순이 시작되는지 (공격/수비 모두 제공 — 수비팀은
                                              # "상대의 이번 타순 시작번호"를 참고용으로 받음)
-      "my_prev_lineup": [pCode,...] | None,  # 우리 팀이 직전에 제출한 라인업 (없으면 None)
-      "opponent_prev_lineup": [pCode,...] | None,  # 상대가 "직전 이닝"에 제출한 라인업
+      "selected_lineup": [pCode,...] | None, # 공격: 이번 선발 10명(수비 자리 순서), 수비: None
+      "my_prev_lineup": [pCode,...] | None,  # 우리 팀 같은 역할의 최근 확정 명단
+      "opponent_prev_lineup": [pCode,...] | None,  # 상대 반대 역할의 최근 명단. 공격 호출이면 이번 수비 명단
       "opp_pitcher_pcode": int | None,      # 공격 턴에만 제공: 이번 하프 상대 선발/등판 투수
       "opp_catcher_pcode": int | None,      # 공격 턴에만 제공: 이번 하프 상대 포수
-      "time_budget_sec": 10.0,              # 이 함수에 주어진 제한시간(초). 초과 시 실격/폴백 처리됨
+      "time_budget_sec": 10.0,              # 이 함수에 주어진 제한시간(초). 초과 시 폴백 처리됨
     }
 
 rng : random.Random
@@ -89,11 +90,14 @@ rng : random.Random
   플레이의 실책 확률이 50% 증가**합니다. DH 슬롯은 수비를 보지 않으므로 포지션 불일치 페널티가
   적용되지 않습니다.
 - 같은 사람을 리스트에 두 번 넣을 수 없습니다.
+- 수비 호출에서 출전 10명을 선발합니다. 공격은 selected_lineup[:9]의 순서만 바꿀 수 있습니다.
+  DH를 포함한 같은 9명이 공수에 참여하며 투수는 타격하지 않습니다. 교체는 다음 이닝 시작에만 가능합니다.
 - 이닝 도중 교체는 없습니다 — 이닝 시작 시 그 이닝에 쓸 전체 명단을 제출하는 방식이며,
   이닝 중간이나 공수교대 때 개별 선수를 바꾸는 절차는 존재하지 않습니다.
 - 함수는 제한시간(기본 10초) 안에 반환해야 합니다. 초과하거나 예외가 발생하거나 반환값이
   규칙을 위반하면, 직전에 제출했던 유효한 라인업으로 자동 대체되고(폴백), 그마저 없으면
-  (예: 1이닝 초) my_team에 나열된 순서상 앞쪽 선수들로 기본 출전 처리됩니다.
+  (예: 1이닝 초) 기본 수비 명단으로 출전 처리됩니다. 공격의 직전 타순이 이번 선발 9명과
+  다르면 재사용하지 않고 이번 수비 명단 앞 9명의 순서를 사용합니다.
 
 권장 사항 (실행시간 관련, 사전 벤치마크 결과 참고)
 ------------------------------------------------
@@ -254,7 +258,8 @@ def default_defense_lineup(team: Team) -> List[int]:
     return lineup
 
 
-def validate_lineup(league: LeagueData, team: Team, lineup, is_offense: bool) -> Optional[str]:
+def validate_lineup(league: LeagueData, team: Team, lineup, is_offense: bool,
+                    selected_lineup: Optional[List[int]] = None) -> Optional[str]:
     """문제 없으면 None, 문제 있으면 에러 메시지 문자열 반환."""
     if lineup is None:
         return "반환값이 None입니다"
@@ -277,6 +282,8 @@ def validate_lineup(league: LeagueData, team: Team, lineup, is_offense: bool) ->
             return f"pCode {p}는 우리 팀 선수가 아닙니다"
 
     if is_offense:
+        if selected_lineup is not None and set(lineup) != set(selected_lineup[:9]):
+            return "공격은 이닝 시작에 선발한 9명의 타순만 변경할 수 있습니다 (선수 교체 불가)"
         for p in lineup:
             if p in team.pitcher_pcodes:
                 return f"공격 라인업에 투수(pCode {p})가 포함되어 있습니다 (DH 규정 위반)"
