@@ -1,0 +1,323 @@
+{
+  "mode": "trusted in-process (no hard timeout)",
+  "seeds_per_pair": 0,
+  "seed_start": 100000,
+  "pairs": [
+    [
+      "삼성",
+      "KT"
+    ],
+    [
+      "LG",
+      "KIA"
+    ],
+    [
+      "두산",
+      "NC"
+    ],
+    [
+      "롯데",
+      "SSG"
+    ],
+    [
+      "한화",
+      "키움"
+    ]
+  ],
+  "games": 0,
+  "wins": 0,
+  "draws": 0,
+  "losses": 0,
+  "point_rate": null,
+  "run_difference": 0,
+  "fallbacks": {
+    "advanced": 0,
+    "original": 0
+  },
+  "timing": {
+    "advanced": {
+      "calls": 0,
+      "mean_sec": null,
+      "max_sec": null
+    },
+    "original": {
+      "calls": 0,
+      "mean_sec": null,
+      "max_sec": null
+    }
+  },
+  "elapsed_sec": 8.25999304652214e-05,
+  "smoke_checks": [
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "삼성",
+        "opponent": "KT",
+        "cases": [
+          {
+            "label": "공격(타순 9명)",
+            "status": "ok",
+            "elapsed_sec": 1.567,
+            "error": null,
+            "detail": "김성윤 / 구자욱 / 디아즈 / 전병우 / 박승규 / 김태근 / 김도환 / 박진우 / 차승준"
+          },
+          {
+            "label": "수비(10명)",
+            "status": "ok",
+            "elapsed_sec": 1.622,
+            "error": null,
+            "detail": "양도근 / 박병호 / 안주형 / 심재훈 / 홍현빈 / 윤정빈 / 김헌곤 / 김재성 / 김지찬 / 후라도"
+          }
+        ],
+        "ok": true
+      }
+    },
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "KT",
+        "opponent": "삼성",
+        "cases": [
+          {
+            "label": "공격(타순 9명)",
+            "status": "ok",
+            "elapsed_sec": 1.436,
+            "error": null,
+            "detail": "안현민 / 이호연 / 박민석 / 스티븐슨 / 김건형 / 로하스 / 김병준 / 이정훈 / 허경민"
+          },
+          {
+            "label": "수비(10명)",
+            "status": "ok",
+            "elapsed_sec": 1.562,
+            "error": null,
+            "detail": "장준원 / 강민성 / 윤준혁 / 김상수 / 배정대 / 장진혁 / 최성민 / 조대현 / 강현우 / 고영표"
+          }
+        ],
+        "ok": true
+      }
+    },
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "LG",
+        "opponent": "삼성",
+        "cases": [
+          {
+            "label": "공격(타순 9명)",
+            "status": "ok",
+            "elapsed_sec": 1.581,
+            "error": null,
+            "detail": "오스틴 / 김현수 / 문보경 / 김준태 / 김현종 / 신민재 / 박동원 / 문성주 / 홍창기"
+          },
+          {
+            "label": "수비(10명)",
+            "status": "ok",
+            "elapsed_sec": 1.498,
+            "error": null,
+            "detail": "오지환 / 천성호 / 김정율 / 이영빈 / 송찬의 / 박해민 / 홍창기 / 함창건 / 최원영 / 치리노스"
+          }
+        ],
+        "ok": true
+      }
+    },
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "KIA",
+        "opponent": "삼성",
+        "cases": [
+          {
+            "label": "공격(타순 9명)",
+            "status": "ok",
+            "elapsed_sec": 1.295,
+            "error": null,
+            "detail": "최형우 / 김도영 / 김선빈 / 나성범 / 주효상 / 위즈덤 / 김호령 / 박정우 / 윤도현"
+          },
+          {
+            "label": "수비(10명)",
+            "status": "ok",
+            "elapsed_sec": 1.48,
+            "error": null,
+            "detail": "변우혁 / 박민 / 김규성 / 서건창 / 박재현 / 정해원 / 이창진 / 황대인 / 김도영 / 올러"
+          }
+        ],
+        "ok": true
+      }
+    },
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "두산",
+        "opponent": "삼성",
+        "cases": [
+          {
+            "label": "공격(타순 9명)",
+            "status": "ok",
+            "elapsed_sec": 1.54,
+            "error": null,
+            "detail": "박지훈 / 양의지 / 안재석 / 홍성호 / 케이브 / 김재환 / 김성재 / 강현구 / 박민준"
+          },
+          {
+            "label": "수비(10명)",
+            "status": "ok",
+            "elapsed_sec": 1.628,
+            "error": null,
+            "detail": "김동준 / 강승호 / 여동건 / 박준영 / 조수행 / 김민석 / 추재현 / 류현준 / 박지훈 / 잭로그"
+          }
+        ],
+        "ok": true
+      }
+    },
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "NC",
+        "opponent": "삼성",
+        "cases": [
+          {
+            "label": "공격(타순 9명)",
+            "status": "ok",
+            "elapsed_sec": 1.544,
+            "error": null,
+            "detail": "박건우 / 김주원 / 박민우 / 김정호 / 권희동 / 박영빈 / 최정원 / 김휘집 / 김범준"
+          },
+          {
+            "label": "수비(10명)",
+            "status": "ok",
+            "elapsed_sec": 1.725,
+            "error": null,
+            "detail": "홍종표 / 서호철 / 한재환 / 오영수 / 이우성 / 박시원 / 최원준 / 박세혁 / 안인산 / 라일리"
+          }
+        ],
+        "ok": true
+      }
+    },
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "롯데",
+        "opponent": "삼성",
+        "cases": [
+          {
+            "label": "공격(타순 9명)",
+            "status": "ok",
+            "elapsed_sec": 1.608,
+            "error": null,
+            "detail": "박찬형 / 레이예스 / 윤동희 / 박재엽 / 박건우 / 전준우 / 한태양 / 이태경 / 강승구"
+          },
+          {
+            "label": "수비(10명)",
+            "status": "ok",
+            "elapsed_sec": 1.541,
+            "error": null,
+            "detail": "박승욱 / 정훈 / 고승민 / 김민성 / 장두성 / 한승현 / 황성빈 / 손성빈 / 손호영 / 감보아"
+          }
+        ],
+        "ok": true
+      }
+    },
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "SSG",
+        "opponent": "삼성",
+        "cases": [
+          {
+            "label": "공격(타순 9명)",
+            "status": "ok",
+            "elapsed_sec": 1.582,
+            "error": null,
+            "detail": "에레디아 / 류효승 / 최정 / 김태윤 / 이율예 / 정현승 / 박성한 / 한유섬 / 석정우"
+          },
+          {
+            "label": "수비(10명)",
+            "status": "ok",
+            "elapsed_sec": 1.704,
+            "error": null,
+            "detail": "김찬형 / 김성현 / 안상현 / 정준재 / 박지환 / 최준우 / 하재훈 / 이지영 / 현원회 / 앤더슨"
+          }
+        ],
+        "ok": true
+      }
+    },
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "한화",
+        "opponent": "삼성",
+        "cases": [
+          {
+            "label": "공격(타순 9명)",
+            "status": "ok",
+            "elapsed_sec": 1.563,
+            "error": null,
+            "detail": "리베라토 / 이승현 / 노시환 / 장규현 / 문현빈 / 채은성 / 최재훈 / 플로리얼 / 이진영"
+          },
+          {
+            "label": "수비(10명)",
+            "status": "ok",
+            "elapsed_sec": 1.593,
+            "error": null,
+            "detail": "심우준 / 김인환 / 이도윤 / 안치홍 / 이원석 / 김태연 / 유로결 / 허인서 / 임종찬 / 폰세"
+          }
+        ],
+        "ok": true
+      }
+    },
+    {
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "infos": [],
+      "smoke": {
+        "team": "키움",
+        "opponent": "삼성",
+        "cases": [
+          {
+            "label": "공격(타순 9명)",
+            "status": "ok",
+            "elapsed_sec": 1.532,
+            "error": null,
+            "detail": "송성문 / 이재상 / 김병휘 / 이주형(58) / 최주환 / 이승원 / 이원석 / 변상권 / 강진성"
+          },
+          {
+            "label": "수비(10명)",
+            "status": "ok",
+            "elapsed_sec": 1.41,
+            "error": null,
+            "detail": "송지후 / 전태현 / 김웅빈 / 김태진 / 임병욱 / 박수종 / 박주홍 / 김재현 / 이주형(2) / 알칸타라"
+          }
+        ],
+        "ok": true
+      }
+    }
+  ],
+  "results": []
+}

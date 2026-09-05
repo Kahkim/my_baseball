@@ -1,0 +1,413 @@
+{
+  "mode": "trusted in-process (no hard timeout)",
+  "seeds_per_pair": 4,
+  "seed_start": 710000,
+  "pairs": [
+    [
+      "삼성",
+      "KT"
+    ],
+    [
+      "LG",
+      "KIA"
+    ],
+    [
+      "두산",
+      "NC"
+    ],
+    [
+      "롯데",
+      "SSG"
+    ],
+    [
+      "한화",
+      "키움"
+    ]
+  ],
+  "games": 40,
+  "wins": 22,
+  "draws": 4,
+  "losses": 14,
+  "point_rate": 0.6,
+  "run_difference": 15,
+  "fallbacks": {
+    "advanced": 0,
+    "original": 0
+  },
+  "timing": {
+    "advanced": {
+      "calls": 716,
+      "mean_sec": 0.12370017610292611,
+      "max_sec": 0.44999059988185763
+    },
+    "original": {
+      "calls": 716,
+      "mean_sec": 0.09043111857195911,
+      "max_sec": 0.32025190023705363
+    }
+  },
+  "elapsed_sec": 190.4372946000658,
+  "smoke_checks": [],
+  "results": [
+    {
+      "seed": 710000,
+      "home": "삼성",
+      "away": "KT",
+      "advanced_home": true,
+      "advanced_runs": 3,
+      "original_runs": 1,
+      "winner": "advanced"
+    },
+    {
+      "seed": 710000,
+      "home": "삼성",
+      "away": "KT",
+      "advanced_home": false,
+      "advanced_runs": 1,
+      "original_runs": 11,
+      "winner": "original"
+    },
+    {
+      "seed": 710977,
+      "home": "삼성",
+      "away": "KT",
+      "advanced_home": true,
+      "advanced_runs": 7,
+      "original_runs": 4,
+      "winner": "advanced"
+    },
+    {
+      "seed": 710977,
+      "home": "삼성",
+      "away": "KT",
+      "advanced_home": false,
+      "advanced_runs": 5,
+      "original_runs": 0,
+      "winner": "advanced"
+    },
+    {
+      "seed": 711954,
+      "home": "삼성",
+      "away": "KT",
+      "advanced_home": true,
+      "advanced_runs": 5,
+      "original_runs": 8,
+      "winner": "original"
+    },
+    {
+      "seed": 711954,
+      "home": "삼성",
+      "away": "KT",
+      "advanced_home": false,
+      "advanced_runs": 3,
+      "original_runs": 6,
+      "winner": "original"
+    },
+    {
+      "seed": 712931,
+      "home": "삼성",
+      "away": "KT",
+      "advanced_home": true,
+      "advanced_runs": 4,
+      "original_runs": 3,
+      "winner": "advanced"
+    },
+    {
+      "seed": 712931,
+      "home": "삼성",
+      "away": "KT",
+      "advanced_home": false,
+      "advanced_runs": 0,
+      "original_runs": 0,
+      "winner": null
+    },
+    {
+      "seed": 720007,
+      "home": "LG",
+      "away": "KIA",
+      "advanced_home": true,
+      "advanced_runs": 1,
+      "original_runs": 6,
+      "winner": "original"
+    },
+    {
+      "seed": 720007,
+      "home": "LG",
+      "away": "KIA",
+      "advanced_home": false,
+      "advanced_runs": 7,
+      "original_runs": 0,
+      "winner": "advanced"
+    },
+    {
+      "seed": 720984,
+      "home": "LG",
+      "away": "KIA",
+      "advanced_home": true,
+      "advanced_runs": 3,
+      "original_runs": 4,
+      "winner": "original"
+    },
+    {
+      "seed": 720984,
+      "home": "LG",
+      "away": "KIA",
+      "advanced_home": false,
+      "advanced_runs": 3,
+      "original_runs": 1,
+      "winner": "advanced"
+    },
+    {
+      "seed": 721961,
+      "home": "LG",
+      "away": "KIA",
+      "advanced_home": true,
+      "advanced_runs": 0,
+      "original_runs": 4,
+      "winner": "original"
+    },
+    {
+      "seed": 721961,
+      "home": "LG",
+      "away": "KIA",
+      "advanced_home": false,
+      "advanced_runs": 3,
+      "original_runs": 0,
+      "winner": "advanced"
+    },
+    {
+      "seed": 722938,
+      "home": "LG",
+      "away": "KIA",
+      "advanced_home": true,
+      "advanced_runs": 6,
+      "original_runs": 2,
+      "winner": "advanced"
+    },
+    {
+      "seed": 722938,
+      "home": "LG",
+      "away": "KIA",
+      "advanced_home": false,
+      "advanced_runs": 3,
+      "original_runs": 11,
+      "winner": "original"
+    },
+    {
+      "seed": 730014,
+      "home": "두산",
+      "away": "NC",
+      "advanced_home": true,
+      "advanced_runs": 6,
+      "original_runs": 3,
+      "winner": "advanced"
+    },
+    {
+      "seed": 730014,
+      "home": "두산",
+      "away": "NC",
+      "advanced_home": false,
+      "advanced_runs": 0,
+      "original_runs": 4,
+      "winner": "original"
+    },
+    {
+      "seed": 730991,
+      "home": "두산",
+      "away": "NC",
+      "advanced_home": true,
+      "advanced_runs": 0,
+      "original_runs": 3,
+      "winner": "original"
+    },
+    {
+      "seed": 730991,
+      "home": "두산",
+      "away": "NC",
+      "advanced_home": false,
+      "advanced_runs": 3,
+      "original_runs": 5,
+      "winner": "original"
+    },
+    {
+      "seed": 731968,
+      "home": "두산",
+      "away": "NC",
+      "advanced_home": true,
+      "advanced_runs": 1,
+      "original_runs": 2,
+      "winner": "original"
+    },
+    {
+      "seed": 731968,
+      "home": "두산",
+      "away": "NC",
+      "advanced_home": false,
+      "advanced_runs": 4,
+      "original_runs": 2,
+      "winner": "advanced"
+    },
+    {
+      "seed": 732945,
+      "home": "두산",
+      "away": "NC",
+      "advanced_home": true,
+      "advanced_runs": 11,
+      "original_runs": 7,
+      "winner": "advanced"
+    },
+    {
+      "seed": 732945,
+      "home": "두산",
+      "away": "NC",
+      "advanced_home": false,
+      "advanced_runs": 3,
+      "original_runs": 3,
+      "winner": null
+    },
+    {
+      "seed": 740021,
+      "home": "롯데",
+      "away": "SSG",
+      "advanced_home": true,
+      "advanced_runs": 4,
+      "original_runs": 0,
+      "winner": "advanced"
+    },
+    {
+      "seed": 740021,
+      "home": "롯데",
+      "away": "SSG",
+      "advanced_home": false,
+      "advanced_runs": 11,
+      "original_runs": 4,
+      "winner": "advanced"
+    },
+    {
+      "seed": 740998,
+      "home": "롯데",
+      "away": "SSG",
+      "advanced_home": true,
+      "advanced_runs": 6,
+      "original_runs": 4,
+      "winner": "advanced"
+    },
+    {
+      "seed": 740998,
+      "home": "롯데",
+      "away": "SSG",
+      "advanced_home": false,
+      "advanced_runs": 3,
+      "original_runs": 0,
+      "winner": "advanced"
+    },
+    {
+      "seed": 741975,
+      "home": "롯데",
+      "away": "SSG",
+      "advanced_home": true,
+      "advanced_runs": 0,
+      "original_runs": 0,
+      "winner": null
+    },
+    {
+      "seed": 741975,
+      "home": "롯데",
+      "away": "SSG",
+      "advanced_home": false,
+      "advanced_runs": 5,
+      "original_runs": 2,
+      "winner": "advanced"
+    },
+    {
+      "seed": 742952,
+      "home": "롯데",
+      "away": "SSG",
+      "advanced_home": true,
+      "advanced_runs": 1,
+      "original_runs": 5,
+      "winner": "original"
+    },
+    {
+      "seed": 742952,
+      "home": "롯데",
+      "away": "SSG",
+      "advanced_home": false,
+      "advanced_runs": 12,
+      "original_runs": 4,
+      "winner": "advanced"
+    },
+    {
+      "seed": 750028,
+      "home": "한화",
+      "away": "키움",
+      "advanced_home": true,
+      "advanced_runs": 3,
+      "original_runs": 2,
+      "winner": "advanced"
+    },
+    {
+      "seed": 750028,
+      "home": "한화",
+      "away": "키움",
+      "advanced_home": false,
+      "advanced_runs": 3,
+      "original_runs": 12,
+      "winner": "original"
+    },
+    {
+      "seed": 751005,
+      "home": "한화",
+      "away": "키움",
+      "advanced_home": true,
+      "advanced_runs": 2,
+      "original_runs": 2,
+      "winner": null
+    },
+    {
+      "seed": 751005,
+      "home": "한화",
+      "away": "키움",
+      "advanced_home": false,
+      "advanced_runs": 7,
+      "original_runs": 2,
+      "winner": "advanced"
+    },
+    {
+      "seed": 751982,
+      "home": "한화",
+      "away": "키움",
+      "advanced_home": true,
+      "advanced_runs": 3,
+      "original_runs": 2,
+      "winner": "advanced"
+    },
+    {
+      "seed": 751982,
+      "home": "한화",
+      "away": "키움",
+      "advanced_home": false,
+      "advanced_runs": 3,
+      "original_runs": 1,
+      "winner": "advanced"
+    },
+    {
+      "seed": 752959,
+      "home": "한화",
+      "away": "키움",
+      "advanced_home": true,
+      "advanced_runs": 4,
+      "original_runs": 3,
+      "winner": "advanced"
+    },
+    {
+      "seed": 752959,
+      "home": "한화",
+      "away": "키움",
+      "advanced_home": false,
+      "advanced_runs": 2,
+      "original_runs": 3,
+      "winner": "original"
+    }
+  ]
+}

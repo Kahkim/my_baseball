@@ -1,0 +1,55 @@
+{
+  "mode": "isolated",
+  "seeds_per_pair": 1,
+  "seed_start": 310000,
+  "pairs": [
+    [
+      "삼성",
+      "KT"
+    ]
+  ],
+  "games": 2,
+  "wins": 2,
+  "draws": 0,
+  "losses": 0,
+  "point_rate": 1.0,
+  "run_difference": 6,
+  "fallbacks": {
+    "advanced": 0,
+    "original": 0
+  },
+  "timing": {
+    "advanced": {
+      "calls": 36,
+      "mean_sec": 1.6292445792092218,
+      "max_sec": 1.9163472652435303
+    },
+    "original": {
+      "calls": 36,
+      "mean_sec": 1.6226919094721477,
+      "max_sec": 2.0377330780029297
+    }
+  },
+  "elapsed_sec": 119.24731840007007,
+  "smoke_checks": [],
+  "results": [
+    {
+      "seed": 310000,
+      "home": "삼성",
+      "away": "KT",
+      "advanced_home": true,
+      "advanced_runs": 5,
+      "original_runs": 0,
+      "winner": "advanced"
+    },
+    {
+      "seed": 310000,
+      "home": "삼성",
+      "away": "KT",
+      "advanced_home": false,
+      "advanced_runs": 1,
+      "original_runs": 0,
+      "winner": "advanced"
+    }
+  ]
+}

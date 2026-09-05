@@ -108,6 +108,16 @@ python -m kbo_sim.cli --a-name 나 --a-team 삼성 --a-algo my_algo.py --b-name 
 안타·삼진 등의 확률은 기록에 체력과 보정을 적용한 **모델의 추정값**입니다.
 도루 성향과 개인 실책 배수 등은 동봉 CSV에 없는 항목을 보완하는 합성값입니다.
 
+## 개선형 Tabu Search 예제
+
+[example_tabu_advanced.py](examples/example_tabu_advanced.py)는 기존 Tabu 예제에
+공격 후보 교체, 상대 투수·맞대결 평가, 수비 체력 보존을 더한 별도 제출 파일입니다.
+원래 예제는 비교용으로 유지합니다. 설계와 측정 결과는 [개선형 Tabu 안내](docs/Tabu_개선_예제.md)를 참고하세요.
+
+```shell
+python -m kbo_sim.server --a-name 개선Tabu --a-team 삼성 --a-algo examples/example_tabu_advanced.py --b-name 기존Tabu --b-team KT --b-algo examples/example_tabu_lineup.py --seed 42
+```
+
 ## 개발·운영 점검
 
 최근 수정한 업로드·끝내기·동명이인 집계를 빠르게 검사하려면:
