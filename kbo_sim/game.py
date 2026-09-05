@@ -335,8 +335,12 @@ class Game:
 
         while outs < 3:
             batter_pcode = batting_order[slot % 9]
+            runs_to_win = None
+            if half == "bottom" and inning >= self.max_innings:
+                runs_to_win = self.score[self.away.name] - self.score[self.home.name] + 1
             res = resolve_plate_appearance(self.league, batter_pcode, pitcher_pcode, defense_lineup,
-                                            self.roster_state, self.grng.engine, bases, outs)
+                                            self.roster_state, self.grng.engine, bases, outs,
+                                            runs_to_win=runs_to_win)
             for se in res.steal_events:
                 self._emit({"type": "steal", "inning": inning, "half": half, **se})
             outs += res.outs_added

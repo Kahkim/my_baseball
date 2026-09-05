@@ -721,9 +721,10 @@ function renderGameControls(){
 function renderSeriesChip(){
   const s = S.series; if(!s) return;
   const chip = el('seriesChip'); chip.classList.remove('hidden');
-  const n = s.students;
+  const ids = s.student_ids || s.students;
+  const n = s.students.map((name, i) => s.students[0] === s.students[1] ? `${name} (${ids[i]})` : name);
   chip.innerHTML = `<span>3연전</span> <b>${s.game_index+1} / ${s.total_games}</b> <span>|</span>
-     <b>${esc(n[0])} ${s.points[n[0]]} : ${s.points[n[1]]} ${esc(n[1])}</b>`;
+     <b>${esc(n[0])} ${s.points[ids[0]]} : ${s.points[ids[1]]} ${esc(n[1])}</b>`;
 }
 
 function lineupTable(info){

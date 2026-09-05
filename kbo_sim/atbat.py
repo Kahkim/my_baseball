@@ -127,7 +127,7 @@ def _resolve_bunt(bases: Bases, batter_pcode: int, engine_rng: random.Random) ->
                      hit_dir=engine_rng.uniform(0.25, 0.75), hit_depth=engine_rng.uniform(0.05, 0.15))
 
 
-def _advance_on_hit(bases: Bases, bases_gain: int, batter_pcode: int, engine_rng: random.Random,
+def _advance_on_hit_unlimited(bases: Bases, bases_gain: int, batter_pcode: int, engine_rng: random.Random,
                      speed_proxy_fn) -> tuple[int, int]:
     """bases_gain: 1=단타,2=2루타,3=3루타. 반환: (득점수, RBI).
     단순화된 베이스러닝 규칙: 3루주자는 항상 득점, 나머지는 타구 종류/주자 발빠르기(성향 대용치)에
@@ -183,6 +183,27 @@ def _advance_on_hit(bases: Bases, bases_gain: int, batter_pcode: int, engine_rng
     return runs, rbi
 
 
+def _advance_on_hit(bases: Bases, bases_gain: int, batter_pcode: int, engine_rng: random.Random,
+                     speed_proxy_fn, max_runs: Optional[int] = None) -> tuple[int, int]:
+    before = dict(bases)
+    runs, rbi = _advance_on_hit_unlimited(bases, bases_gain, batter_pcode, engine_rng,
+                                          speed_proxy_fn)
+    if max_runs is None or runs < max_runs:
+        return runs, rbi
+
+    # Stop scoring at the winning run; retain trailing runners on base.
+    scored = [b for b in (3, 2, 1)
+              if before[b] is not None and before[b] not in bases.values()]
+    winning_base = scored[max_runs - 1]
+    gain = min(bases_gain, 4 - winning_base)
+    bases.update(empty_bases())
+    for b in (3, 2, 1):
+        if before[b] is not None and b not in scored[:max_runs]:
+            bases[min(3, b + gain)] = before[b]
+    bases[gain] = batter_pcode
+    return max_runs, max_runs
+
+
 def _force_advance_walk(bases: Bases, batter_pcode: int) -> int:
     """볼넷/사구: 강제 진루만 발생 (표준 야구 규칙). 반환: 득점수."""
     runs = 0
@@ -198,7 +219,8 @@ def _force_advance_walk(bases: Bases, batter_pcode: int) -> int:
 
 def resolve_plate_appearance(league: LeagueData, offense_batter_pcode: int, defense_pitcher_pcode: int,
                               defense_lineup: List[int], roster_state: GameRosterState,
-                              engine_rng: random.Random, bases: Bases, outs: int) -> PAResult:
+                              engine_rng: random.Random, bases: Bases, outs: int,
+                              runs_to_win: Optional[int] = None) -> PAResult:
     steal_events = []
     steal = maybe_attempt_steal(bases, roster_state, engine_rng, outs)
     extra_outs_from_steal = 0
@@ -244,7 +266,10 @@ def resolve_plate_appearance(league: LeagueData, offense_batter_pcode: int, defe
         desc = "볼넷 출루" if event == "BB" else "몸에 맞는 볼로 출루"
     elif event in ("1B", "2B", "3B"):
         gain = {"1B": 1, "2B": 2, "3B": 3}[event]
-        runs, rbi = _advance_on_hit(bases, gain, offense_batter_pcode, engine_rng, speed_proxy)
+        runs, rbi = _advance_on_hit(bases, gain, offense_batter_pcode, engine_rng, speed_proxy,
+                                    max_runs=runs_to_win)
+        gain = next(b for b in (1, 2, 3) if bases[b] == offense_batter_pcode)
+        event = {1: "1B", 2: "2B", 3: "3B"}[gain]
         desc = {"1B": "안타", "2B": "2루타", "3B": "3루타"}[event]
         hit_dir = engine_rng.random()
         # 단타는 얕게, 2·3루타는 깊게 (2루타는 좌우 갭, 3루타는 코너 쪽이 많도록 살짝 밀어줌)

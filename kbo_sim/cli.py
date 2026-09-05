@@ -91,14 +91,16 @@ def main(argv=None):
               f"{r['home_score']} {g.home_student}({g.home_team})"
               f"{'  [콜드게임]' if r['mercy'] else ''} -> JSON: {g.json_path}")
 
-    print(f"\n=== 매치 결과: {mr.score} ===")
-    print(f"승자: {mr.winner if mr.winner else '무승부'}\n")
+    display_scores = {f"{name} ({pid})": mr.score[pid] for pid, name in mr.students.items()}
+    print(f"\n=== 매치 결과: {display_scores} ===")
+    winner_label = f"{mr.students[mr.winner]} ({mr.winner})" if mr.winner else "무승부"
+    print(f"승자: {winner_label}\n")
 
     summary_path = os.path.join(args.out, "match_summary.json")
     os.makedirs(args.out, exist_ok=True)
     with open(summary_path, "w", encoding="utf-8") as f:
-        json.dump({"score": mr.score, "winner": mr.winner,
-                   "games": [{"game_no": g.game_no, "home_student": g.home_student, "away_student": g.away_student,
+        json.dump({"score": mr.score, "winner": mr.winner, "students": mr.students,
+                   "games": [{"game_no": g.game_no, "home_id": g.home_id, "away_id": g.away_id, "home_student": g.home_student, "away_student": g.away_student,
                               "home_team": g.home_team, "away_team": g.away_team, "result": g.result,
                               "json_path": g.json_path} for g in mr.games]}, f, ensure_ascii=False, indent=2)
     print(f"요약 저장: {summary_path}")

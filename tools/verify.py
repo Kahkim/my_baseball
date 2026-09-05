@@ -433,6 +433,13 @@ def main():
           f"{dt:.1f}초 만에 반환, ok={rep['ok']}")
     print()
 
+    # Deterministic coverage of uploads, walkoffs and duplicate student names.
+    import unittest
+    from tools.test_regressions import RegressionTests
+    suite = unittest.defaultTestLoader.loadTestsFromTestCase(RegressionTests)
+    regression_result = unittest.TextTestRunner(verbosity=1).run(suite)
+    check("업로드·끝내기·동명이인 회귀 테스트", regression_result.wasSuccessful())
+
     # 결과 요약 --------------------------------------------------------
     passed = sum(1 for _, ok, _ in results if ok)
     print("=" * 60)

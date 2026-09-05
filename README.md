@@ -1,101 +1,130 @@
 # 나의 구단주가 되어라
 
-메타휴리스틱(Tabu Search / PSO / GA) 수업용 KBO 야구 시뮬레이션 게임.
-2025 KBO 정규시즌 실제 기록(10개 구단, 선수 575명)을 바탕으로, 학생이 제출한 알고리즘이
-**매 이닝 출전선수를 결정**하고 그 결과를 네이버 문자중계 스타일로 중계한다.
+**매 이닝 출전선수를 고르는 알고리즘으로 겨루는 KBO 야구 시뮬레이션 과제입니다.**
+학생은 Python 함수 `decide_lineup()`을 구현하고, Tabu Search·GA·PSO 등으로 선수 선택과 타순을 탐색합니다.
+현재 동봉된 2025 시즌 CSV에는 10개 구단, 타자 294명과 투수 281명(총 575명)이 들어 있습니다.
 
-## 두 가지 실행 방식
+## 먼저 읽을 문서
 
-### 1) 라이브 중계 (수업 시연용, 권장)
-
-```bash
-pip install pandas numpy          # 의존성은 이게 전부
-python -m kbo_sim.server          # 브라우저가 자동으로 열림 (http://127.0.0.1:8000)
-```
-
-브라우저에서:
-1. 두 학생의 **이름 / 구단 선택 / 제출한 .py 파일 드래그&드롭** → 서버가 즉시 코드 검증
-   (문법·시그니처, 난수 규칙(`rng`만 사용) 위반, 위험한 호출을 잡아내고, **실제로 한 번 호출해서**
-   규칙에 맞는 명단이 제한시간 안에 나오는지까지 확인. 오류가 있으면 시작 버튼이 잠긴다)
-2. **[3연전 시작]** → 1차전(선택한 팀) → 2차전(팀 교대) → 3차전(무작위 배정)
-3. 진행은 버튼 하나가 역할을 바꿔가며 **이닝당 3번 클릭**:
-   - **[다음 라인업 선발 (N회)]** — 이닝 시작에 딱 한 번, 두 학생의 알고리즘이 4번 호출되어
-     (두 팀 × 공격·수비) 그 이닝에 쓸 명단이 전부 확정된다. 공수교대 때는 다시 뽑지 않는다.
-   - **[다음 공격 진행 (N회초)]** / **[다음 공격 진행 (N회말)]** — 확정된 명단으로 각 하프이닝 진행
-   (미리 계산해둔 로그를 재생하는 방식이 아님)
-4. **[자동진행]**은 한 경기가 끝나면 자동으로 멈춘다 — 최종 스코어를 확인하고 [다음 경기 시작]을 누른다
-5. 화면에 실시간으로 표시되는 것:
-   - **그라운드 시각화** — 야구장 위에 수비 9명 배치, 타구 궤적, 처리한 수비수 강조, 주자·타자·아웃카운트
-   - 이닝별 스코어보드(R/H/E)와 구단 엠블럼
-   - **양 팀 출전명단** (타순 / 수비 포지션 / OPS / 체력 / 포지션 불일치 ⚠)
-   - **이닝별·팀별 알고리즘 계산시간** 표
-   - 투구 하나하나의 문자중계
-
-미리 팀/파일을 지정해두고 띄우려면:
-```bash
-python -m kbo_sim.server --a-name 김학생 --a-team 삼성 --a-algo submissions/kim.py \
-                          --b-name 이학생 --b-team KT   --b-algo submissions/lee.py --seed 42
-```
-
-### 2) 일괄 채점 (여러 조를 자동으로 돌릴 때)
-
-```bash
-python -m kbo_sim.cli --a-name 김학생 --a-team 삼성 --a-algo submissions/kim.py \
-                       --b-name 이학생 --b-team KT   --b-algo submissions/lee.py \
-                       --seed 42 --out output
-```
-3연전이 즉시 끝까지 진행되고 `output/game1~3.json` + `match_summary.json`이 저장된다.
-저장된 JSON은 `viewer/broadcast_viewer.html`(파일 더블클릭)로 열어 리플레이할 수 있다.
-
-> 같은 시드면 라이브 방식과 일괄 채점 방식의 결과가 **완전히 동일**하다 (같은 상태머신·같은 대진표 사용).
-
-## 폴더 구성
-
-```
-kbo_sim/                엔진 패키지
-kbo_sim/data_snapshot/  KBO 시즌 원천 CSV (teams/pitchers/batters/matchup.csv) — 데이터 정본, 시즌 갱신 시 이 폴더의 CSV만 교체
-examples/
-  student_algorithm_template.py   학생 제출용 템플릿 (여기서 시작)
-  example_ga_lineup.py            GA 예제 — 타순(순열) 최적화 + 스태미너 고려 투수 선택
-  example_tabu_lineup.py          Tabu Search 예제 — 수비 10칸 배정 최적화가 주력
-  example_pso_lineup.py           PSO 예제 — "가중치 벡터"를 탐색하고 라인업으로 디코딩
-  strategy_fatigue_rotation.py    탐색 없이 체력관리 규칙만 지키는 대조군
-  strategy_naive_best.py          ⚠️ 잘못된 전략 표본 (에이스 혹사, 체력 무시)
-  baseline_random_algorithm.py    무작위 baseline (엔진 테스트용)
-viewer/
-  live_viewer.html                라이브 중계 화면 (서버가 제공)
-  broadcast_viewer.html           저장된 로그 리플레이 (파일로 직접 열기)
-  logos/                          공식 구단 로고 이미지를 넣는 곳 (README 참고)
-tools/verify.py         엔진 전체 자체점검 — 코드 수정 후 돌려보세요
-tools/calibrate.py      득점 환경이 현실적인지 검증하는 밸런스 점검 스크립트
-tools/tournament.py     알고리즘 라운드로빈 — "전략에 따라 결과가 달라지는가"를 통계로 확인
-docs/                   학생 가이드 / 강사 가이드
-output/                 경기 결과 JSON
-```
-
-## 모듈 구성 (`kbo_sim/`)
-
-| 파일 | 역할 |
+| 하고 싶은 일 | 읽을 문서 |
 |---|---|
-| `data_pipeline.py` | CSV 로드/정제, 리그 평균, 표본축소(shrinkage) 사건확률 계산 |
-| `models.py` | Team/PlayerRuntime(경기 중 체력 상태) 등 데이터 구조 |
-| `fatigue.py` | 시그모이드 체력저하 모델 |
-| `traits.py` | 도루/번트/실책 등 합성 성향 (⚠️ 실제 기록 아님, 명시적으로 문서화) |
-| `rng.py` | 학생용/엔진용 RNG 분리 |
-| `probability.py` | log5 매치업 확률 + 실제 맞대결 기록 블렌딩 + 체력 반영 |
-| `pitch_sequence.py` | 확정된 타석 결과에 맞는 그럴듯한 투구 시퀀스 역생성 |
-| `defense.py` | 타구 처리, 포지션 불일치 실책 페널티, 병살/희생플라이 |
-| `atbat.py` | 한 타석 전체 처리 (도루/번트/타격 결과/베이스러닝) |
-| `student_api.py` | 학생 함수 인터페이스 스펙 + 격리 실행(하드 타임아웃) |
-| `student_check.py` | 제출 코드 검증 (AST 정적검사 + 실제 1회 호출 스모크 테스트) |
-| `game.py` | 9이닝 경기 엔진 (`prepare_next_inning()` / `play_prepared_half()` / 배치 `run()`), 콜드게임, 이벤트 로그 |
-| `match.py` | 3연전 대진표 + 배치 오케스트레이션 |
-| `live_session.py` | 3연전 라이브 진행 관리 |
-| `server.py` | 라이브 중계 HTTP 서버 (팀선택/파일드랍/이닝진행 API) |
-| `broadcast_export.py` | 이벤트 로그 -> 뷰어용 JSON |
-| `bootstrap.py` | 최초 실행 시 데이터 초기 설정 |
-| `cli.py` | 일괄 채점 진입점 |
+| 설치하고 예제 경기를 실행하기 | 이 README의 빠른 시작 |
+| 경기 규칙과 수업 운영 방식 이해하기 | [게임 규칙 및 운영 매뉴얼](docs/게임_규칙_및_운영_매뉴얼.md) |
+| 제출 함수 구현하기 | [프로그램 매뉴얼](docs/프로그램_매뉴얼.md) |
+| 제출 파일 만들기 | [학생용 템플릿](examples/student_algorithm_template.py)을 복사해 수정 |
 
-자세한 사용법은 `docs/게임_규칙_및_운영_매뉴얼.md`(게임 규칙·실행 방법), `docs/프로그램_매뉴얼.md`
-(학생이 구현할 함수 스펙), `docs/강사_가이드.md`(강사)를 참고하세요. `docs/학생_가이드.md`는
-학생용 문서로 가는 짧은 안내 페이지입니다.
+## 빠른 시작
+
+아래 명령은 **프로젝트 최상위 폴더**에서 실행합니다. Python 3.12 환경을 기준으로 안내하며,
+명령을 한 줄씩 적었으므로 PowerShell과 Anaconda Prompt에서 그대로 사용할 수 있습니다.
+
+### 1. 환경 준비
+
+`my_baseball` conda 환경이 아직 없다면 한 번만 만듭니다.
+
+```shell
+conda create -n my_baseball python=3.12 pip -y
+```
+
+이미 환경이 있다면 생성 명령을 생략하고 다음을 실행합니다.
+
+```shell
+conda activate my_baseball
+python -m pip install pandas numpy
+```
+
+`conda`를 찾을 수 없다는 오류가 나면 Anaconda Prompt에서 실행하세요.
+PowerShell에서도 사용하려면 Anaconda Prompt에서 `conda init powershell`을 실행하고 PowerShell을 새로 엽니다.
+
+### 2. 포함된 예제로 라이브 경기 시작
+
+```shell
+python -m kbo_sim.server --a-name 학생A --a-team 삼성 --a-algo examples/student_algorithm_template.py --b-name 학생B --b-team KT --b-algo examples/baseline_random_algorithm.py --seed 42
+```
+
+브라우저가 자동으로 열립니다. 열리지 않으면 터미널에 표시된 주소(기본 `http://127.0.0.1:8000`)로 접속하세요.
+
+1. 두 제출 파일의 검사 결과를 확인합니다. 검사는 **공격 1회와 수비 1회**를 실행합니다.
+2. **[경기 준비 완료 → 3연전 시작]**을 누릅니다.
+3. **[다음 라인업 선발] → [다음 공격 진행(초)] → [다음 공격 진행(말)]** 순서로 진행합니다.
+4. 자동진행을 켜면 한 경기가 끝날 때 멈춥니다. 점수를 확인하고 **[다음 경기 시작]**을 누릅니다.
+
+직접 이름·팀·파일을 선택하려면 옵션 없이 `python -m kbo_sim.server`를 실행하세요.
+서버 종료는 실행 중인 터미널에서 `Ctrl+C`입니다.
+
+### 3. 내 알고리즘으로 바꾸기
+
+[학생용 템플릿](examples/student_algorithm_template.py)을 `my_algo.py`로 복사하고 함수를 수정합니다.
+라이브 화면에 파일을 올리거나, 아래 일괄 실행 명령으로 baseline과 비교하세요.
+
+```shell
+python -m kbo_sim.cli --a-name 나 --a-team 삼성 --a-algo my_algo.py --b-name 상대 --b-team KT --b-algo examples/baseline_random_algorithm.py --seed 42 --out output/my_test
+```
+
+`my_algo.py`를 먼저 만들어야 합니다. 이 명령은 화면 조작 없이 3경기를 순서대로 실행하므로,
+알고리즘 실행시간과 PC 성능에 따라 완료까지 시간이 걸립니다.
+
+## 알고 있어야 할 규칙
+
+- 기본 경기는 9이닝이며 연장전 없이 동점이면 무승부입니다.
+- 함수는 이닝 시작에 총 4회(두 학생 각각 수비·공격) 호출됩니다. 공수교대 때 다시 뽑지 않습니다.
+- 공격은 타자 9명, 수비는 `[내야수×4, 외야수×3, 포수, DH, 투수]` 순서의 10명을 반환합니다.
+- 공격과 수비 명단은 별도로 정합니다. 공격 9명이 수비 명단의 앞 9명과 같아야 한다는 제약은 없습니다.
+- 체력은 **한 경기 안에서 회복되지 않으며**, 다음 경기는 새 체력 상태로 시작합니다.
+- 기본 제한시간은 함수 호출당 10초입니다. 경기 중 실패한 호출은 직전 유효 명단 또는 기본 명단으로 대체됩니다.
+- 3연전은 선택한 팀으로 1경기, 팀과 홈/원정을 바꿔 1경기, 무작위 배정으로 1경기를 치릅니다.
+
+콜드게임·끝내기·타순 이어가기의 자세한 규칙은 [운영 매뉴얼](docs/게임_규칙_및_운영_매뉴얼.md)에 있습니다.
+
+## 결과 보기와 저장
+
+| 실행 방식 | 저장되는 파일 |
+|---|---|
+| 라이브 서버 | 경기 종료마다 `--out` 폴더에 `game1.json`~`game3.json` |
+| 일괄 실행(CLI) | 위 경기 파일과 3연전 요약 `match_summary.json` |
+
+[리플레이 뷰어](viewer/broadcast_viewer.html)를 브라우저로 열고 **`gameN.json` 한 개**를 선택하면 중계를 다시 볼 수 있습니다.
+`match_summary.json`은 리플레이용 파일이 아닙니다. 같은 출력 폴더를 다시 사용하면 같은 이름의 결과 파일을 덮어쓰므로,
+실험별로 `--out output/test_01`처럼 경로를 나누세요.
+
+같은 데이터·코드·선택 팀·시드로 실행하고, 알고리즘이 전달받은 `rng`만 사용하며 시간 초과 여부도 같다면
+라이브와 CLI의 경기 결과를 재현할 수 있습니다. 실행시간 표와 파일 경로까지 같아진다는 뜻은 아닙니다.
+
+## 폴더 안내
+
+| 경로 | 내용 |
+|---|---|
+| [docs/](docs/) | 학생 배포용 규칙·운영 매뉴얼과 프로그램 매뉴얼 |
+| [examples/](examples/) | 제출 템플릿, GA·Tabu·PSO 예제, 비교용 전략 |
+| [kbo_sim/](kbo_sim/) | 경기 엔진, 학생 함수 실행·검사, 서버·CLI |
+| [kbo_sim/data_snapshot/](kbo_sim/data_snapshot/) | `teams.csv`, `batters.csv`, `pitchers.csv`, `matchup.csv` |
+| [viewer/](viewer/) | 라이브 중계 화면과 리플레이 뷰어 |
+| [viewer/logos/](viewer/logos/README.md) | 구단 로고 설정 안내 |
+| [tools/](tools/) | 회귀 검사, 전체 검사, 밸런스·전략 비교 도구 |
+| [uploads/](uploads/) | 라이브에서 올린 제출 파일. 업로드마다 별도 하위 폴더에 저장 |
+| [output/](output/) | 기본 경기 결과 저장 폴더 |
+
+실행할 때 동봉된 CSV를 읽으며, KBO 사이트에서 자동으로 최신 데이터를 내려받지는 않습니다.
+안타·삼진 등의 확률은 기록에 체력과 보정을 적용한 **모델의 추정값**입니다.
+도루 성향과 개인 실책 배수 등은 동봉 CSV에 없는 항목을 보완하는 합성값입니다.
+
+## 개발·운영 점검
+
+최근 수정한 업로드·끝내기·동명이인 집계를 빠르게 검사하려면:
+
+```shell
+python tools/test_regressions.py
+```
+
+전체 검사는 데이터·타석 처리·학생 코드 실행·경기 반복까지 포함하므로 더 오래 걸립니다.
+
+```shell
+python tools/verify.py
+```
+
+득점 환경은 `python tools/calibrate.py`, 예제 전략 비교는 `python tools/tournament.py`로 확인할 수 있습니다.
+두 도구의 결과는 실행한 조건에서의 측정값이며 특정 전략의 승률이나 실행시간을 보장하지 않습니다.
+
+새로 생성하는 CLI 요약 JSON의 `score`와 `winner`는 참가자 ID `A`/`B`를 사용합니다.
+`students`는 ID와 표시 이름의 매핑이고, 경기별 `home_id`/`away_id`는 팀 교대 후에도 같은 참가자를 가리킵니다.
+라이브 API의 `points`도 ID를 키로 사용합니다. 기존에 저장된 JSON은 자동 변환하지 않습니다.

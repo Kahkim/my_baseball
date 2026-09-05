@@ -39,6 +39,7 @@ import argparse
 import json
 import os
 import re
+import tempfile
 import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -198,7 +199,8 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(content, str) or not content.strip():
             return self._error("빈 파일입니다.")
         os.makedirs(UPLOAD_DIR, exist_ok=True)
-        path = os.path.join(UPLOAD_DIR, filename)
+        submission_dir = tempfile.mkdtemp(prefix="submission_", dir=UPLOAD_DIR)
+        path = os.path.join(submission_dir, filename)
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
         report = full_check(path, APP.league, payload.get("team"), payload.get("opponent"),

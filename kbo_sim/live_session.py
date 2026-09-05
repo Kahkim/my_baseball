@@ -116,7 +116,8 @@ class SeriesSession:
         self.records.append(MatchGameRecord(
             game_no=sched.game_no, home_student=sched.home.student_name,
             away_student=sched.away.student_name, home_team=game.home.name,
-            away_team=game.away.name, result=game.result, json_path=json_path))
+            away_team=game.away.name, result=game.result, json_path=json_path,
+            home_id=sched.home.participant_id, away_id=sched.away.participant_id))
 
     # ------------------------------------------------------------------
     def game_meta(self) -> dict:
@@ -125,8 +126,8 @@ class SeriesSession:
         return {
             "game_no": s.game_no,
             "label": s.label,
-            "home": {**team_meta(self.league, g.home), "student": s.home.student_name},
-            "away": {**team_meta(self.league, g.away), "student": s.away.student_name},
+            "home": {**team_meta(self.league, g.home), "student": s.home.student_name, "student_id": s.home.participant_id},
+            "away": {**team_meta(self.league, g.away), "student": s.away.student_name, "student_id": s.away.participant_id},
             "seed": s.seed,
             "timeout_sec": self.timeout_sec,
             "max_innings": g.max_innings,
@@ -140,19 +141,21 @@ class SeriesSession:
         }
 
     def series_state(self) -> dict:
-        points, winner = award_points(self.records, self.a.student_name, self.b.student_name)
+        points, winner = award_points(self.records, "A", "B")
         return {
             "students": [self.a.student_name, self.b.student_name],
+            "student_ids": ["A", "B"],
             "points": points,
             "series_winner_so_far": winner,
             "game_index": self.game_index,
             "total_games": len(self.schedule),
             "has_next_game": self.has_next_game,
-            "records": [{"game_no": r.game_no, "home_student": r.home_student,
+            "records": [{"game_no": r.game_no, "home_id": r.home_id, "away_id": r.away_id, "home_student": r.home_student,
                           "away_student": r.away_student, "home_team": r.home_team,
                           "away_team": r.away_team, "result": r.result, "json_path": r.json_path}
                          for r in self.records],
-            "schedule": [{"game_no": s.game_no, "label": s.label,
+            "schedule": [{"game_no": s.game_no, "home_id": s.home.participant_id,
+                           "away_id": s.away.participant_id, "label": s.label,
                            "home_student": s.home.student_name, "home_team": s.home.team_name,
                            "away_student": s.away.student_name, "away_team": s.away.team_name}
                           for s in self.schedule],

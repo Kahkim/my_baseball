@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import os
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import List, Optional, Tuple
 
 from .broadcast_export import export_game_to_file
@@ -30,6 +30,7 @@ class Contestant:
     student_name: str
     algo_path: str
     team_name: str
+    participant_id: str = ""  # Stable A/B identity within a series.
 
 
 @dataclass
@@ -50,22 +51,26 @@ class MatchGameRecord:
     away_team: str
     result: dict
     json_path: Optional[str] = None
+    home_id: Optional[str] = None
+    away_id: Optional[str] = None
 
 
 @dataclass
 class MatchResult:
     games: List[MatchGameRecord] = field(default_factory=list)
-    score: dict = field(default_factory=dict)  # student_name -> points
+    score: dict = field(default_factory=dict)  # participant_id -> points
+    students: dict = field(default_factory=dict)  # participant_id -> display name
     winner: Optional[str] = None
 
 
 def build_series_schedule(a: Contestant, b: Contestant, master_rng: random.Random) -> List[ScheduledGame]:
     """3연전 대진표 생성. 반드시 master_rng를 순서대로 소비하므로 시드가 같으면 항상 같은 대진."""
+    a, b = replace(a, participant_id="A"), replace(b, participant_id="B")
     seed1 = master_rng.randrange(2 ** 31)
     g1 = ScheduledGame(1, home=b, away=a, seed=seed1, label="1차전 (선택한 팀 그대로)")
 
-    swapped_a = Contestant(a.student_name, a.algo_path, b.team_name)
-    swapped_b = Contestant(b.student_name, b.algo_path, a.team_name)
+    swapped_a = replace(a, team_name=b.team_name)
+    swapped_b = replace(b, team_name=a.team_name)
     seed2 = master_rng.randrange(2 ** 31)
     g2 = ScheduledGame(2, home=swapped_a, away=swapped_b, seed=seed2, label="2차전 (팀 교대)")
 
@@ -73,8 +78,8 @@ def build_series_schedule(a: Contestant, b: Contestant, master_rng: random.Rando
     master_rng.shuffle(team_pool)
     students = [a, b]
     master_rng.shuffle(students)
-    rand_a = Contestant(students[0].student_name, students[0].algo_path, team_pool[0])
-    rand_b = Contestant(students[1].student_name, students[1].algo_path, team_pool[1])
+    rand_a = replace(students[0], team_name=team_pool[0])
+    rand_b = replace(students[1], team_name=team_pool[1])
     home_away = [rand_a, rand_b]
     master_rng.shuffle(home_away)
     seed3 = master_rng.randrange(2 ** 31)
@@ -84,14 +89,19 @@ def build_series_schedule(a: Contestant, b: Contestant, master_rng: random.Rando
 
 
 def award_points(records: List[MatchGameRecord], name_a: str, name_b: str) -> Tuple[dict, Optional[str]]:
+    # Legacy name-based records are supported only for distinct names.
+    if name_a == name_b:
+        raise ValueError("Distinct participant IDs are required for scoring")
     score = {name_a: 0.0, name_b: 0.0}
     for g in records:
         res = g.result
+        home_id = g.home_id if g.home_id is not None else g.home_student
+        away_id = g.away_id if g.away_id is not None else g.away_student
         if res["winner"] is None:
-            score[g.home_student] += 0.5
-            score[g.away_student] += 0.5
+            score[home_id] += 0.5
+            score[away_id] += 0.5
         else:
-            winner_student = g.home_student if res["winner"] == g.home_team else g.away_student
+            winner_student = home_id if res["winner"] == g.home_team else away_id
             score[winner_student] += 1.0
     if score[name_a] > score[name_b]:
         winner = name_a
@@ -134,11 +144,12 @@ class Match:
             export_game_to_file(self.league, game, json_path, algo_meta)
         return MatchGameRecord(game_no=sched.game_no, home_student=sched.home.student_name,
                                 away_student=sched.away.student_name, home_team=home_team.name,
-                                away_team=away_team.name, result=game.result, json_path=json_path)
+                                away_team=away_team.name, result=game.result, json_path=json_path,
+                                home_id=sched.home.participant_id, away_id=sched.away.participant_id)
 
     def run_series(self) -> MatchResult:
-        mr = MatchResult()
+        mr = MatchResult(students={"A": self.a.student_name, "B": self.b.student_name})
         for sched in build_series_schedule(self.a, self.b, self.master_rng):
             mr.games.append(self._run_one(sched))
-        mr.score, mr.winner = award_points(mr.games, self.a.student_name, self.b.student_name)
+        mr.score, mr.winner = award_points(mr.games, "A", "B")
         return mr
