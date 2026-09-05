@@ -1,0 +1,72 @@
+{
+  "score": {
+    "김학생": 2.0,
+    "이학생": 1.0
+  },
+  "winner": "김학생",
+  "games": [
+    {
+      "game_no": 1,
+      "home_student": "이학생",
+      "away_student": "김학생",
+      "home_team": "LG",
+      "away_team": "한화",
+      "result": {
+        "home": "LG",
+        "away": "한화",
+        "home_score": 2,
+        "away_score": 5,
+        "home_hits": 7,
+        "away_hits": 10,
+        "home_errors": 0,
+        "away_errors": 0,
+        "winner": "한화",
+        "mercy": false,
+        "final_inning": 9
+      },
+      "json_path": "output/game1.json"
+    },
+    {
+      "game_no": 2,
+      "home_student": "김학생",
+      "away_student": "이학생",
+      "home_team": "LG",
+      "away_team": "한화",
+      "result": {
+        "home": "LG",
+        "away": "한화",
+        "home_score": 4,
+        "away_score": 3,
+        "home_hits": 5,
+        "away_hits": 8,
+        "home_errors": 0,
+        "away_errors": 0,
+        "winner": "LG",
+        "mercy": false,
+        "final_inning": 9
+      },
+      "json_path": "output/game2.json"
+    },
+    {
+      "game_no": 3,
+      "home_student": "이학생",
+      "away_student": "김학생",
+      "home_team": "한화",
+      "away_team": "LG",
+      "result": {
+        "home": "한화",
+        "away": "LG",
+        "home_score": 6,
+        "away_score": 0,
+        "home_hits": 10,
+        "away_hits": 4,
+        "home_errors": 0,
+        "away_errors": 0,
+        "winner": "한화",
+        "mercy": false,
+        "final_inning": 9
+      },
+      "json_path": "output/game3.json"
+    }
+  ]
+}
