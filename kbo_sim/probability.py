@@ -27,8 +27,8 @@ PITCHER_FAVORABLE = {"SO", "OUT"}
 MATCHUP_SHRINK_PA = 15.0     # 실전 맞대결 표본이 작으므로(대부분 1~30타석) 축소 강도도 작게
 JITTER_SIGMA = 0.12          # 매 타석 컨디션 잡음(로그정규) 표준편차
 # 체력 배수 -> 사건확률 배수 변환 강도. 1.0이면 체력차가 확률에 그대로 곱해져 지친 투수가
-# 비현실적으로 얻어맞는다(실측: 9이닝 22실점). 0.6이 tools/calibrate.py 기준으로 현실적인 값.
-FATIGUE_SKILL_ALPHA = 0.6
+# 비현실적으로 얻어맞는다. 값이 클수록 "지칠수록 더 얻어맞는다"가 강해진다.
+FATIGUE_SKILL_ALPHA = 0.68
 
 
 def _renorm(d: Dict[str, float]) -> Dict[str, float]:

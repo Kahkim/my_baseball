@@ -62,16 +62,20 @@ class PlayerRuntime:
     appearances: int = 0                # 이닝 출전 횟수(디버그/통계용)
 
     def fatigue_mult(self):
-        from .fatigue import performance_multiplier
+        from .fatigue import (performance_multiplier, BATTER_STEEPNESS_NUMERATOR,
+                              PITCHER_STEEPNESS_NUMERATOR, PITCHER_MAX_DROP)
         if self.is_pitcher:
-            return performance_multiplier(self.pitch_count, self.pitch_target or 100.0)
-        return performance_multiplier(self.swing_count, self.swing_target or 20.0)
+            return performance_multiplier(self.pitch_count, self.pitch_target or 100.0,
+                                          PITCHER_STEEPNESS_NUMERATOR, PITCHER_MAX_DROP)
+        return performance_multiplier(self.swing_count, self.swing_target or 14.0, BATTER_STEEPNESS_NUMERATOR)
 
     def health_pct(self):
-        from .fatigue import health_pct
+        from .fatigue import (health_pct, BATTER_STEEPNESS_NUMERATOR,
+                              PITCHER_STEEPNESS_NUMERATOR, PITCHER_MAX_DROP)
         if self.is_pitcher:
-            return health_pct(self.pitch_count, self.pitch_target or 100.0)
-        return health_pct(self.swing_count, self.swing_target or 20.0)
+            return health_pct(self.pitch_count, self.pitch_target or 100.0,
+                              PITCHER_STEEPNESS_NUMERATOR, PITCHER_MAX_DROP)
+        return health_pct(self.swing_count, self.swing_target or 14.0, BATTER_STEEPNESS_NUMERATOR)
 
 
 class GameRosterState:

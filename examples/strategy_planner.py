@@ -5,11 +5,12 @@ strategy_planner.py
 
 이 게임의 진짜 어려움은 한 이닝의 라인업을 잘 짜는 것이 아니라 **9이닝치 체력을 어떻게 나눠
 쓰느냐**에 있다. 체력은 회복되지 않고, 야수는 수비 1이닝당 스윙 3~5개를 소모하며 목표치가
-20 안팎이다. 즉 한 선수는 대략 4이닝 정도밖에 온전히 뛰지 못한다.
+14 안팎이다. 즉 한 선수는 대략 3~4이닝 정도밖에 온전히 뛰지 못하고, 그 지점을 넘으면
+완만하게가 아니라 짧은 구간 안에 능력치가 확 꺾인다.
 
     필요한 수비 슬롯: 9이닝 × 8자리 = 72 슬롯-이닝
-    선수 1명이 감당 가능: 약 4이닝
-    => 최소 18명 이상을 돌려 써야 한다 (주전 9명 고정으로는 절대 불가능)
+    선수 1명이 감당 가능: 약 3.5이닝
+    => 최소 21명 이상을 돌려 써야 한다 (주전 9명 고정으로는 절대 불가능)
 
 그래서 이 구현은 매 이닝 "지금 제일 좋은 선수"가 아니라 **남은 이닝 수를 보고 부하를 분산**한다:
 
@@ -64,7 +65,7 @@ def decide_lineup(my_team: pd.DataFrame, opponent_team: pd.DataFrame,
         if r["role"] == "타자":
             pa = float(r.get("PA", 0) or 0)
             swings = float(r.get("swing_count") or 0)
-            target = float(r.get("swing_target") or 20.0)
+            target = float(r.get("swing_target") or 14.0)
             bat[r["pCode"]] = {
                 "pos": r["position"], "health": health, "pa": pa,
                 "ops": _shrunk(r, "OPS", LEAGUE_OPS, "PA", SHRINK_PA),

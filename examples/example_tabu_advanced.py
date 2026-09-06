@@ -53,8 +53,11 @@ def _rates(row, pitcher=False, shrink=None):
 def _mult(row, extra=0.0, pitcher=False):
     count = _num(row.get("pitch_count" if pitcher else "swing_count"))
     target = max(_num(row.get("pitch_target" if pitcher else "swing_target"),
-                      50.0 if pitcher else 20.0), 1.0)
-    x = max(-40.0, min(40.0, 8.0 * (count + extra - target) / target))
+                      50.0 if pitcher else 14.0), 1.0)
+    # 야수는 투수보다 가파른 계수(16 vs 8)를 써서 목표치 부근에서 짧은 구간 안에
+    # 절반 이상 무너진다 (엔진 kbo_sim/fatigue.py의 BATTER_STEEPNESS_NUMERATOR와 동일).
+    steepness = 8.0 if pitcher else 16.0
+    x = max(-40.0, min(40.0, steepness * (count + extra - target) / target))
     return 1.0 - 0.5 / (1.0 + math.exp(-x))
 
 

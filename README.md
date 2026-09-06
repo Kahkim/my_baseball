@@ -108,32 +108,27 @@ python -m kbo_sim.cli --a-name 나 --a-team 삼성 --a-algo my_algo.py --b-name 
 안타·삼진 등의 확률은 기록에 체력과 보정을 적용한 **모델의 추정값**입니다.
 도루 성향과 개인 실책 배수 등은 동봉 CSV에 없는 항목을 보완하는 합성값입니다.
 
-## 개선형 Tabu Search 예제
+## 엔진 자체 점검 (학생들은 몰라도 됨)
 
-[example_tabu_advanced.py](examples/example_tabu_advanced.py)는 기존 Tabu 예제에
-10명 선발 단계의 후보 교체, 상대 투수·맞대결 평가, 공수 기여와 체력 비용 평가를 더한 제출 파일입니다.
-원래 예제는 비교용으로 유지합니다. 설계와 측정 결과는 [개선형 Tabu 안내](docs/Tabu_개선_예제.md)를 참고하세요.
+**이 절의 스크립트는 학생이 제출한 `decide_lineup`을 검사하는 도구가 아닙니다.**
+내 제출 코드를 확인하려면 위 "빠른 시작 → 3. 내 알고리즘으로 바꾸기"처럼 라이브 서버에 파일을
+올리거나 `python -m kbo_sim.cli --a-algo my_algo.py ...`로 실행하세요. 아래 도구들은
+**엔진(`kbo_sim`) 자체**가 의도대로 동작하는지 확인하는, 강의를 운영·개발하는 쪽에서 쓰는
+스크립트입니다. 엔진 코드나 상수를 고쳤을 때 돌려서 깨진 곳이 없는지 확인합니다.
 
-```shell
-python -m kbo_sim.server --a-name 개선Tabu --a-team 삼성 --a-algo examples/example_tabu_advanced.py --b-name 기존Tabu --b-team KT --b-algo examples/example_tabu_lineup.py --seed 42
-```
+| 명령 | 확인 대상 |
+|---|---|
+| `python tools/test_regressions.py` | 이닝 내 선발 고정, 업로드 처리, 끝내기 규칙, 동명이인 집계 등 과거에 깨졌던 부분 (수 초 내 완료) |
+| `python tools/verify.py` | 데이터 무결성·타석 처리·학생코드 격리·3연전 대진표·JSON 직렬화·득점 환경까지 엔진 전체 자체 점검 (7개 항목, 파일 상단 docstring 참고) |
+| `python tools/calibrate.py` | 체력 반영 전/후 득점·타석 수가 KBO 현실 범위(9이닝 4~5.5점)에 들어오는지, 학생 알고리즘 없이 엔진 확률 모델만으로 측정 |
+| `python tools/tournament.py [시드 수] [프로세스 수]` | `examples/`의 예제 전략들을 라운드로빈으로 맞붙여 "더 좋은 전략이 실제로 더 자주 이기는가"를 신뢰구간과 함께 확인 |
 
-## 개발·운영 점검
+네 도구 모두 결과는 실행한 조건에서의 측정값이며 특정 전략의 승률이나 실행시간을 보장하지 않습니다.
 
-이닝 내 선발 고정·업로드·끝내기·동명이인 집계를 빠르게 검사하려면:
-
-```shell
-python tools/test_regressions.py
-```
-
-전체 검사는 데이터·타석 처리·학생 코드 실행·경기 반복까지 포함하므로 더 오래 걸립니다.
-
-```shell
-python tools/verify.py
-```
-
-득점 환경은 `python tools/calibrate.py`, 예제 전략 비교는 `python tools/tournament.py`로 확인할 수 있습니다.
-두 도구의 결과는 실행한 조건에서의 측정값이며 특정 전략의 승률이나 실행시간을 보장하지 않습니다.
+`tools/tournament.py`가 비교하는 참가자는 커맨드라인 인자가 아니라 파일 상단의
+`ENTRIES` 리스트(`(이름, 파일경로)` 튜플)에 정해져 있습니다. 내가 만든 파일을 이 비교에
+끼워 넣고 싶다면 `tools/tournament.py`를 열어 `ENTRIES`에 `("내알고리즘", "my_algo.py")` 같은
+튜플을 추가하세요. 학생에게 배포하는 절차가 아니라 예제/엔진을 관리하는 쪽에서 쓰는 방식입니다.
 
 새로 생성하는 CLI 요약 JSON의 `score`와 `winner`는 참가자 ID `A`/`B`를 사용합니다.
 `students`는 ID와 표시 이름의 매핑이고, 경기별 `home_id`/`away_id`는 팀 교대 후에도 같은 참가자를 가리킵니다.
@@ -142,16 +137,11 @@ python tools/verify.py
 
 ## 고쳐야 할것
 
-### readme 파일의 개발운영점검 항목
-
-구체적으로 어떤 프로그램이 뭘 점검하는지 알려줘야겠다.
-
-프로그램을 돌리면 어떤 팀에서 나의 어떤 코드를 이용하는지 설정도 필요.
-
-
 ### 경기 설정
 
-선수들 체력저하 더 되도록, 특히 투수
+~~타자/야수 체력저하: 목표치 20→14, 곡선을 더 가파르게 조정해 3~4이닝마다 출전진 절반 이상을
+교체해야 하도록 재조정함 (2026-09-06, `kbo_sim/fatigue.py`).~~ 투수 체력저하는 아직 그대로라
+추가로 더 되게 할지 검토 필요.
 
 좋은 알고리즘이 팀을 우선하는지 대대적 검증 필요
 
