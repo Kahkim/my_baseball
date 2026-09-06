@@ -21,9 +21,9 @@ strategy_planner.py
 학생들에게: 이 구현은 여전히 규칙 기반이다. 여기에 메타휴리스틱을 얹어 **9이닝 전체의 기용
 계획**을 탐색하면 더 잘할 수 있다 (조합이 폭발적이라 그리디로는 못 푸는 영역).
 
-이닝 선발 규칙: 수비 호출에서 투수 포함 10명을 선발합니다. 공격 호출의 my_team은 그 10명만
-포함하므로, 투수 제외 9명의 타순만 정하세요. context["selected_lineup"]은 수비 자리 순서의
-선발 10명입니다. 공수교대 때 선수·투수 교체는 없으며, 다음 이닝 시작에 다시 선발합니다.
+이닝 선발 규칙: decide_lineup은 이닝마다 팀당 한 번 호출되며 {"defense": [10명], "offense": [9명]}
+을 반환합니다. defense는 [내야x4, 외야x3, 포수, DH, 투수] 순서, offense는 defense의 앞 9명
+(투수 제외)을 타순대로 재배열한 것입니다. 공수교대 때 교체는 없으며 다음 이닝 시작에 다시 선발합니다.
 """
 import random
 
@@ -51,7 +51,7 @@ def _shrunk(row, col, avg, denom_col, k):
     return w * v + (1 - w) * avg
 
 
-def decide_lineup(is_offense: bool, my_team: pd.DataFrame, opponent_team: pd.DataFrame,
+def decide_lineup(my_team: pd.DataFrame, opponent_team: pd.DataFrame,
                    matchups: pd.DataFrame, context: dict, rng: random.Random):
     inning = int(context.get("inning", 1) or 1)
     remaining = max(TOTAL_INNINGS - inning + 1, 1)
@@ -96,19 +96,6 @@ def decide_lineup(is_offense: bool, my_team: pd.DataFrame, opponent_team: pd.Dat
         fresh_bonus = min(b["capacity"] / max(remaining, 1), 1.0)   # 남은 이닝을 버틸 수 있는가
         return quality(p) * (0.25 + 0.75 * b["health"]) * (1.0 - conserve * 0.35 * (1 - fresh_bonus))
 
-    if is_offense:
-        # 공격은 아낄 이유가 적다(타석 스윙 소모는 수비보다 작음) — 실력·체력 위주
-        order = sorted(bat, key=lambda p: quality(p) * (0.3 + 0.7 * bat[p]["health"]),
-                       reverse=True)[:9]
-        heart = sorted(order, key=lambda p: bat[p]["slg"], reverse=True)[:3]
-        rest = sorted([p for p in order if p not in set(heart)],
-                      key=lambda p: bat[p]["obp"], reverse=True)
-        out = [None] * 9
-        out[2], out[3], out[4] = heart
-        for i, p in zip([i for i in range(9) if out[i] is None], rest):
-            out[i] = p
-        return out
-
     used = set()
 
     def pick(pos, n):
@@ -141,4 +128,17 @@ def decide_lineup(is_offense: bool, my_team: pd.DataFrame, opponent_team: pd.Dat
     ace = ranked[0]
     if pscore(ace) < 0:                       # 전원 지쳤으면 그나마 여력이 가장 큰 투수
         ace = max(pit, key=lambda p: pit[p]["left"])
-    return ifs + ofs + cs + dh + [ace]
+    defense = ifs + ofs + cs + dh + [ace]
+
+    # 공격 타순: 선발 9명(투수 제외)을 실력·체력 위주로 세우고, 장타형을 중심타선에
+    order = sorted(defense[:9], key=lambda p: quality(p) * (0.3 + 0.7 * bat[p]["health"]),
+                   reverse=True)
+    heart = sorted(order, key=lambda p: bat[p]["slg"], reverse=True)[:3]
+    rest = sorted([p for p in order if p not in set(heart)],
+                  key=lambda p: bat[p]["obp"], reverse=True)
+    offense = [None] * 9
+    offense[2], offense[3], offense[4] = heart
+    for i, p in zip([i for i in range(9) if offense[i] is None], rest):
+        offense[i] = p
+
+    return {"defense": defense, "offense": offense}

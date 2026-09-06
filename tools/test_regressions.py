@@ -18,7 +18,39 @@ from kbo_sim.game import Game
 from kbo_sim.live_session import SeriesSession
 from kbo_sim.match import Contestant, Match, MatchGameRecord, award_points, build_series_schedule
 from kbo_sim.models import build_team
+from kbo_sim.pitch_sequence import generate_pitch_sequence
 from kbo_sim.student_api import default_defense_lineup, default_offense_lineup
+
+
+class PitchSequenceTests(unittest.TestCase):
+    def test_counts_and_terminal_pitch_match_result(self):
+        for event, seed in itertools.product(("BB", "SO", "HBP", "1B", "2B", "3B", "HR", "OUT"), range(1000)):
+            with self.subTest(event=event, seed=seed):
+                pitches = generate_pitch_sequence(event, random.Random(seed))
+                balls = strikes = 0
+                for index, pitch in enumerate(pitches):
+                    kind = pitch["kind"]
+                    if kind == "ball":
+                        balls += 1
+                    elif kind in ("called_strike", "swinging_strike"):
+                        strikes += 1
+                    elif kind == "foul":
+                        strikes = min(2, strikes + 1)
+                    self.assertEqual((pitch["balls"], pitch["strikes"]), (balls, strikes))
+                    self.assertEqual(pitch["seq"], index + 1)
+                    if index < len(pitches) - 1:
+                        self.assertLess(balls, 4)
+                        self.assertLess(strikes, 3)
+                        self.assertNotIn(kind, ("hbp", "inplay"))
+                if event == "BB":
+                    self.assertEqual((balls, pitches[-1]["kind"]), (4, "ball"))
+                elif event == "SO":
+                    self.assertLess(balls, 4)
+                    self.assertEqual(strikes, 3)
+                else:
+                    self.assertLess(balls, 4)
+                    self.assertLess(strikes, 3)
+                    self.assertEqual(pitches[-1]["kind"], "hbp" if event == "HBP" else "inplay")
 
 
 class RegressionTests(unittest.TestCase):
@@ -72,6 +104,18 @@ class RegressionTests(unittest.TestCase):
         self.assertEqual(game.result["home_score"], 4)
         self.assertEqual((pa["runs"], pa["rbi"], pa["event"]), (4, 4, "HR"))
         self.assertFalse(any(pa["bases"].values()))
+
+    def test_fourth_ball_advances_runners_and_scores_forced_run(self):
+        game = self.play_scoring_half("BB", inning=8)
+        pa = [e for e in game.events if e["type"] == "pa_result"]
+        self.assertEqual([sum(p is not None for p in e["bases"].values()) for e in pa[:4]], [1, 2, 3, 3])
+        for result in pa[:4]:
+            self.assertEqual(result["bases"][1], result["batter"])
+        self.assertEqual((pa[3]["runs"], pa[3]["score"][self.home.name]), (1, 1))
+        for index, event in enumerate(game.events):
+            if event["type"] == "pitch" and event["balls"] == 4:
+                self.assertEqual(game.events[index + 1]["type"], "pa_result")
+                self.assertEqual(game.events[index + 1]["event"], "BB")
 
     def test_non_walkoff_hits_keep_all_runs(self):
         for inning, half in ((8, "bottom"), (9, "top")):
@@ -158,8 +202,9 @@ class RegressionTests(unittest.TestCase):
             json.dumps(live, allow_nan=False)
 
     def test_real_game_batch_and_step_results_match(self):
-        def fixed_decision(game, team, opponent, is_offense, *args):
-            return list(args[-1][:9]) if is_offense else default_defense_lineup(team)
+        def fixed_decision(game, team, opponent, inning, start_index, opp_pitcher, opp_catcher):
+            defense = default_defense_lineup(team)
+            return list(defense[:9]), defense
         # Only lineup selection is fixed; all at-bats, fatigue and game transitions are real.
         with patch.object(Game, "_decide", fixed_decision):
             for seed in (42, 4242, 9000):
@@ -175,28 +220,23 @@ class RegressionTests(unittest.TestCase):
     def test_locked_roster_survives_half_switch_and_repeated_prepare(self):
         from kbo_sim.student_api import DecisionOutcome
         calls = []
-        def decision(path, module, *, is_offense, my_team, context, **kwargs):
+        def decision(path, module, *, my_team, context, **kwargs):
             team = self.home if path == "home" else self.away
-            if not is_offense:
-                result = default_defense_lineup(team)
-                self.assertIsNone(context["selected_lineup"])
-            else:
-                selected = context["selected_lineup"]
-                self.assertEqual(set(my_team["pCode"]), set(selected))
-                self.assertEqual(len(my_team), 10)
-                result = list(reversed(selected[:9]))
-            calls.append((path, is_offense))
-            return DecisionOutcome("ok", 0.01, result, None)
+            self.assertEqual(len(my_team), len(team.batter_pcodes) + len(team.pitcher_pcodes))
+            defense = default_defense_lineup(team)
+            offense = list(reversed(defense[:9]))
+            calls.append(path)
+            return DecisionOutcome("ok", 0.01, {"offense": offense, "defense": defense}, None)
         game = Game(self.league, self.home, self.away, {"KT": "home", "삼성": "away"}, seed=88)
         with patch("kbo_sim.game.run_student_decision", decision):
             prepared = game.prepare_next_inning()
-            self.assertEqual(len(calls), 4)
+            self.assertEqual(len(calls), 2)
             original = json.loads(json.dumps(game._pending))
             game.prepare_next_inning()
             top = game.play_prepared_half()
             game.prepare_next_inning()
             bottom = game.play_prepared_half()
-            self.assertEqual(len(calls), 4)
+            self.assertEqual(len(calls), 2)
         for result in (top, bottom):
             event = next(e for e in result["events"] if e["type"] == "half_start")
             bat = original["lineups"][event["batting_team"]]
@@ -205,45 +245,45 @@ class RegressionTests(unittest.TestCase):
             self.assertEqual(set(bat["offense"]), set(bat["defense"][:9]))
             self.assertEqual([p["pCode"] for p in event["batting_roster"]], bat["defense"])
             self.assertEqual([p["pCode"] for p in event["defense"]], defense["defense"])
-        self.assertEqual(len(prepared["events"]), 5)
+        self.assertEqual(len(prepared["events"]), 3)
 
-    def test_offense_cannot_replace_locked_player_even_on_fallback(self):
+    def test_offense_must_be_a_permutation_of_defense_nine(self):
         from kbo_sim.student_api import DecisionOutcome
         game = Game(self.league, self.home, self.away, {}, seed=88)
-        selected = default_defense_lineup(self.home)
-        outsider = next(p for p in self.home.batter_pcodes if p not in selected)
-        invalid = selected[:8] + [outsider]
         game.algo_path[self.home.name] = "test"
-        game.prev_lineup[self.home.name]["offense"] = invalid
-        for status, lineup in (("ok", invalid), ("timeout", None), ("error", None)):
-            game.prev_lineup[self.home.name]["offense"] = invalid
+        good_def = default_defense_lineup(self.home)
+        outsider = next(p for p in self.home.batter_pcodes if p not in good_def)
+        good_off = list(reversed(good_def[:9]))
+        # offense가 defense의 앞 9명이 아니면 규칙 위반 -> 폴백
+        bad = {"defense": good_def, "offense": [outsider] + list(good_def[:8])}
+        for status, lineups in (("ok", bad), ("timeout", None), ("error", None)):
+            game.prev_lineup[self.home.name] = {"offense": good_off, "defense": good_def}
             with patch("kbo_sim.game.run_student_decision",
-                       return_value=DecisionOutcome(status, 0.01, lineup, "fixture")):
-                actual = game._decide(self.home, self.away, True, 2, "bottom", 0,
-                    self.away.pitcher_pcodes[0], self.away.roster_by_position["포수"][0], selected)
-            self.assertEqual(actual, selected[:9])
-            self.assertNotIn(outsider, actual)
-        prior = list(reversed(selected[:9]))
-        game.prev_lineup[self.home.name]["offense"] = prior
+                       return_value=DecisionOutcome(status, 0.01, lineups, "fixture")):
+                offense, defense = game._decide(self.home, self.away, 2, 0, None, None)
+            self.assertEqual(offense, good_off)
+            self.assertNotIn(outsider, offense)
+            self.assertEqual(set(offense), set(defense[:9]))
+        # 폴백할 직전 명단도 없으면 기본 명단으로
+        game.prev_lineup[self.home.name] = {"offense": None, "defense": None}
         with patch("kbo_sim.game.run_student_decision",
                    return_value=DecisionOutcome("timeout", 0.01, None, "fixture")):
-            actual = game._decide(self.home, self.away, True, 2, "bottom", 0, None, None, selected)
-        self.assertEqual(actual, prior)
+            offense, defense = game._decide(self.home, self.away, 2, 0, None, None)
+        self.assertEqual(defense, default_defense_lineup(self.home))
+        self.assertEqual(offense, list(defense[:9]))
 
     def test_new_inning_can_change_roster_and_defense_failure_reuses_it(self):
         from kbo_sim.student_api import DecisionOutcome
         game = Game(self.league, self.home, self.away, {"KT": "home", "삼성": "away"}, seed=6)
-        def decision(path, module, *, is_offense, context, **kwargs):
+        def decision(path, module, *, context, **kwargs):
             team = self.home if path == "home" else self.away
-            if is_offense:
-                return DecisionOutcome("ok", 0.01, context["selected_lineup"][:9], None)
-            lineup = default_defense_lineup(team)
+            lineup = list(default_defense_lineup(team))
             if context["inning"] == 2:
                 lineup[8] = next(p for p in team.batter_pcodes if p not in lineup)
                 lineup[9] = team.pitcher_pcodes[1]
             if context["inning"] == 3:
                 return DecisionOutcome("timeout", 0.01, None, "fixture")
-            return DecisionOutcome("ok", 0.01, lineup, None)
+            return DecisionOutcome("ok", 0.01, {"defense": lineup, "offense": list(lineup[:9])}, None)
         snapshots = []
         with patch("kbo_sim.game.run_student_decision", decision):
             for _ in range(3):
@@ -255,37 +295,29 @@ class RegressionTests(unittest.TestCase):
             self.assertNotEqual(snapshots[0][name], snapshots[1][name])
             self.assertEqual(snapshots[1][name], snapshots[2][name])
 
-    def test_upload_check_rejects_offense_replacement(self):
+    def test_upload_check_rejects_offense_not_matching_defense(self):
         from kbo_sim.student_check import full_check
         from kbo_sim.student_api import DecisionOutcome
         selected = default_defense_lineup(self.home)
         outsider = next(p for p in self.home.batter_pcodes if p not in selected)
         calls = []
-        def decision(path, module, *, is_offense, my_team, context, **kwargs):
-            calls.append(is_offense)
-            if is_offense:
-                self.assertEqual(set(my_team["pCode"]), set(selected))
-                lineup = selected[:8] + [outsider]
-            else:
-                lineup = selected
-            return DecisionOutcome("ok", 0.01, lineup, None)
+        def decision(path, module, *, my_team, context, **kwargs):
+            calls.append(1)
+            return DecisionOutcome("ok", 0.01,
+                {"defense": selected, "offense": [outsider] + list(selected[:8])}, None)
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "fixture.py"
-            path.write_text("def decide_lineup(is_offense, my_team, opponent_team, matchups, context, rng):\n    return []\n", encoding="utf-8")
+            path.write_text("def decide_lineup(my_team, opponent_team, matchups, context, rng):\n    return {}\n", encoding="utf-8")
             with patch("kbo_sim.student_check.run_student_decision", decision):
                 report = full_check(str(path), self.league, "KT", "삼성")
-        self.assertEqual(calls, [False, True])
+        self.assertEqual(len(calls), 1)
         self.assertFalse(report["ok"])
-        self.assertEqual(report["smoke"]["cases"][1]["status"], "invalid")
+        self.assertEqual(report["smoke"]["cases"][0]["status"], "invalid")
 
     def test_bundled_examples_keep_roster_for_every_team(self):
         from kbo_sim.student_api import DecisionOutcome, load_student_module
         from kbo_sim.student_check import full_check
         def direct(path, module, *, timeout_sec, **kwargs):
-            if kwargs["is_offense"]:
-                selected = kwargs["context"]["selected_lineup"]
-                self.assertEqual(set(kwargs["my_team"]["pCode"]), set(selected))
-                self.assertTrue(set(kwargs["matchups"]["hitterPCode"]).issubset(selected[:9]))
             result = load_student_module(path, module).decide_lineup(**kwargs)
             return DecisionOutcome("ok", 0.0, result, None)
         examples = Path(__file__).resolve().parents[1] / "examples"
@@ -296,7 +328,7 @@ class RegressionTests(unittest.TestCase):
                     with self.subTest(example=path.name, team=team):
                         report = full_check(str(path), self.league, team, teams[(i + 1) % len(teams)])
                         self.assertTrue(report["ok"], report)
-                        self.assertEqual(len(report["smoke"]["cases"]), 2)
+                        self.assertEqual(len(report["smoke"]["cases"]), 1)
 
     def test_legacy_distinct_name_records(self):
         r = MatchGameRecord(1, "Alice", "Bob", "KT", "삼성", {"winner": "KT"})

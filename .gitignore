@@ -8,3 +8,7 @@ venv/
 !.env.example
 .DS_Store
 Thumbs.db
+
+# 학생 제출물 업로드 (서버 런타임 산출물 — git에 넣지 않음)
+uploads/*
+!uploads/.gitkeep

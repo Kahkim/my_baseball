@@ -18,7 +18,7 @@ from kbo_sim.data_pipeline import load_league_data
 from kbo_sim.game import Game
 from kbo_sim.models import GameRosterState, build_team
 from kbo_sim.student_api import (DecisionOutcome, load_student_module, team_status_dataframe,
-    matchup_dataframe, validate_lineup)
+    matchup_dataframe, validate_lineups)
 from kbo_sim.student_check import full_check
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,22 +41,15 @@ def check_example(ld):
             rt = state.get(p)
             rt.swing_count = 30.0
             rt.pitch_count = 100.0
-        selected = None
-        for offense in (False, True):
-            kwargs = dict(is_offense=offense, my_team=team_status_dataframe(ld, team, state),
-                opponent_team=team_status_dataframe(ld, opp, state), matchups=matchup_dataframe(ld, [], []),
-                context={"inning": 9, "half": "bottom", "batting_order_start_index": 7,
-                         "opp_pitcher_pcode": opp.pitcher_pcodes[0], "time_budget_sec": 10.0})
-            kwargs["context"]["selected_lineup"] = selected
-            if offense:
-                kwargs["my_team"] = kwargs["my_team"][kwargs["my_team"]["pCode"].isin(selected)].copy()
-            module = load_student_module(str(NEW), "advanced_check")
-            first = module.decide_lineup(**kwargs, rng=random.Random(17))
-            second = module.decide_lineup(**kwargs, rng=random.Random(17))
-            assert first == second, name
-            assert validate_lineup(ld, team, first, offense, selected) is None, (name, first)
-            if not offense:
-                selected = first
+        kwargs = dict(my_team=team_status_dataframe(ld, team, state),
+            opponent_team=team_status_dataframe(ld, opp, state), matchups=matchup_dataframe(ld, [], []),
+            context={"inning": 9, "half": "bottom", "batting_order_start_index": 7,
+                     "opp_pitcher_pcode": opp.pitcher_pcodes[0], "time_budget_sec": 10.0})
+        module = load_student_module(str(NEW), "advanced_check")
+        first = module.decide_lineup(**kwargs, rng=random.Random(17))
+        second = module.decide_lineup(**kwargs, rng=random.Random(17))
+        assert first == second, name
+        assert not isinstance(validate_lineups(ld, team, first), str), (name, first)
         print(f"CHECK {name}: fresh subprocess + tired deterministic lineups passed", flush=True)
     return reports
 
@@ -80,10 +73,10 @@ def main():
     def direct(filepath, module_name, *, timeout_sec, **kwargs):
         t0 = time.perf_counter()
         module = load_student_module(filepath, module_name)
-        lineup = module.decide_lineup(**kwargs)
+        lineups = module.decide_lineup(**kwargs)
         elapsed = time.perf_counter() - t0
         status = "ok" if elapsed <= timeout_sec else "timeout"
-        return DecisionOutcome(status, elapsed, lineup if status == "ok" else None,
+        return DecisionOutcome(status, elapsed, lineups if status == "ok" else None,
                                None if status == "ok" else "soft time budget exceeded")
 
     started = time.perf_counter()

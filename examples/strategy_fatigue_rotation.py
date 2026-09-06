@@ -14,9 +14,9 @@ strategy_fatigue_rotation.py
 "탐색 알고리즘이 규칙 기반 휴리스틱을 실제로 이기는가?"를 정량적으로 확인할 수 있다.
 (이기지 못한다면 적합도 함수가 게임의 실제 승리 요인을 반영하지 못하고 있다는 뜻이다)
 
-이닝 선발 규칙: 수비 호출에서 투수 포함 10명을 선발합니다. 공격 호출의 my_team은 그 10명만
-포함하므로, 투수 제외 9명의 타순만 정하세요. context["selected_lineup"]은 수비 자리 순서의
-선발 10명입니다. 공수교대 때 선수·투수 교체는 없으며, 다음 이닝 시작에 다시 선발합니다.
+이닝 선발 규칙: decide_lineup은 이닝마다 팀당 한 번 호출되며 {"defense": [10명], "offense": [9명]}
+을 반환합니다. defense는 [내야x4, 외야x3, 포수, DH, 투수] 순서, offense는 defense의 앞 9명
+(투수 제외)을 타순대로 재배열한 것입니다. 공수교대 때 교체는 없으며 다음 이닝 시작에 다시 선발합니다.
 """
 import random
 
@@ -41,7 +41,7 @@ def _shrunk(row, col, avg, denom_col, k):
     return w * v + (1 - w) * avg
 
 
-def decide_lineup(is_offense: bool, my_team: pd.DataFrame, opponent_team: pd.DataFrame,
+def decide_lineup(my_team: pd.DataFrame, opponent_team: pd.DataFrame,
                    matchups: pd.DataFrame, context: dict, rng: random.Random):
     rows = my_team.to_dict("records")
     bat = {}
@@ -69,17 +69,6 @@ def decide_lineup(is_offense: bool, my_team: pd.DataFrame, opponent_team: pd.Dat
         base = b["ops"] if b["pa"] >= QUALIFY_PA else b["ops"] * 0.75
         return base * (0.15 + 0.85 * b["health"])
 
-    if is_offense:
-        order = sorted(bat, key=bval, reverse=True)[:9]
-        heart = sorted(order, key=lambda p: bat[p]["slg"], reverse=True)[:3]
-        rest = sorted([p for p in order if p not in set(heart)],
-                      key=lambda p: bat[p]["obp"], reverse=True)
-        out = [None] * 9
-        out[2], out[3], out[4] = heart
-        for i, p in zip([i for i in range(9) if out[i] is None], rest):
-            out[i] = p
-        return out
-
     used = set()
 
     def pick(pos, n):
@@ -102,4 +91,16 @@ def decide_lineup(is_offense: bool, my_team: pd.DataFrame, opponent_team: pd.Dat
         return quality * (0.25 + 0.75 * stamina) * (v["health"] ** 1.5)
 
     ace = max(pit, key=pval)
-    return ifs + ofs + cs + dh + [ace]
+    defense = ifs + ofs + cs + dh + [ace]
+
+    # 공격 타순: 선발 9명(투수 제외)을 체력 가중 OPS 순으로 세우고, 장타형을 중심타선에
+    order = sorted(defense[:9], key=bval, reverse=True)
+    heart = sorted(order, key=lambda p: bat[p]["slg"], reverse=True)[:3]
+    rest = sorted([p for p in order if p not in set(heart)],
+                  key=lambda p: bat[p]["obp"], reverse=True)
+    offense = [None] * 9
+    offense[2], offense[3], offense[4] = heart
+    for i, p in zip([i for i in range(9) if offense[i] is None], rest):
+        offense[i] = p
+
+    return {"defense": defense, "offense": offense}

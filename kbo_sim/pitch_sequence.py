@@ -51,8 +51,6 @@ def generate_pitch_sequence(event: str, engine_rng: random.Random) -> List[Dict]
 
     if event == "BB":
         while balls < 4:
-            if strikes >= 3:
-                strikes = 2  # 안전장치 (도달 불가해야 정상)
             # 스트라이크가 아직 3개 미만이면 확률적으로 볼/스트라이크 선택
             if strikes < 2:
                 is_ball = engine_rng.random() < 0.60
@@ -74,13 +72,12 @@ def generate_pitch_sequence(event: str, engine_rng: random.Random) -> List[Dict]
         return pitches
 
     if event == "SO":
+        # 볼넷 이외의 결과에서는 4번째 볼을 만들지 않는다. 카운트를 되돌리면 안 된다.
         swinging_final = engine_rng.random() < 0.62
         while strikes < 3:
-            if balls >= 4:
-                balls = 3
             if strikes < 2:
                 roll = engine_rng.random()
-                if roll < 0.40:
+                if roll < 0.40 and balls < 3:
                     balls += 1
                     add("ball", False, f"{_flavor(engine_rng)} 볼")
                 else:
@@ -101,26 +98,23 @@ def generate_pitch_sequence(event: str, engine_rng: random.Random) -> List[Dict]
     if event in TERMINAL_BIP_EVENTS:
         n_prior = engine_rng.choices([0, 1, 2, 3, 4], weights=[28, 27, 22, 14, 9])[0]
         for _ in range(n_prior):
-            if balls >= 4:
-                balls = 3
-            if strikes >= 3:
-                strikes = 2
             roll = engine_rng.random()
             if strikes >= 2:
                 # 2스트라이크에서는 파울/볼만 (인플레이는 마지막 구에만 허용)
-                if roll < 0.45:
+                if roll < 0.45 and balls < 3:
                     balls += 1
                     add("ball", False, f"{_flavor(engine_rng)} 볼")
                 else:
                     add("foul", True, "파울")
             else:
-                if roll < 0.45:
+                if roll < 0.45 and balls < 3:
                     balls += 1
                     add("ball", False, f"{_flavor(engine_rng)} 볼")
                 elif roll < 0.80:
                     strikes += 1
                     add("called_strike", False, f"{_flavor(engine_rng)} 스트라이크")
                 else:
+                    strikes += 1
                     add("foul", True, "파울")
         add("inplay", True, "타격")
         return pitches

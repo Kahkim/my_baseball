@@ -15,9 +15,10 @@ example_ga_lineup.py
 수비 라인업은 GA를 적용할 만큼 자유도가 크지 않아(포지션 제약이 강함) 간단한 그리디 배정으로
 처리했다 - 이 부분을 Tabu Search 등으로 바꿔보는 것도 좋은 연습이 된다.
 
-이닝 선발 규칙: 수비 호출에서 투수 포함 10명을 선발합니다. 공격 호출의 my_team은 그 10명만
-포함하므로, 투수 제외 9명의 타순만 정하세요. context["selected_lineup"]은 수비 자리 순서의
-선발 10명입니다. 공수교대 때 선수·투수 교체는 없으며, 다음 이닝 시작에 다시 선발합니다.
+이닝 선발 규칙: decide_lineup은 이닝마다 팀당 한 번 호출되며 {"defense": [10명], "offense": [9명]}
+을 반환합니다. defense는 [내야x4, 외야x3, 포수, DH, 투수] 순서(마지막이 투수), offense는
+defense의 앞 9명(투수 제외)을 타순대로 재배열한 것이어야 합니다. 공수교대 때 교체는 없으며
+다음 이닝 시작에 다시 선발합니다. 즉 먼저 출전 10명을 정하고, 그 9명(투수 제외)의 타순을 GA로 최적화합니다.
 """
 import random
 
@@ -114,7 +115,7 @@ def _ga_batting_order(pcodes, stat_by_pcode, rng: random.Random):
     return best
 
 
-def decide_lineup(is_offense: bool, my_team: pd.DataFrame, opponent_team: pd.DataFrame,
+def decide_lineup(my_team: pd.DataFrame, opponent_team: pd.DataFrame,
                    matchups: pd.DataFrame, context: dict, rng: random.Random):
     batters = my_team[my_team["role"] == "타자"]
     pitchers = my_team[my_team["role"] == "투수"]
@@ -135,12 +136,6 @@ def decide_lineup(is_offense: bool, my_team: pd.DataFrame, opponent_team: pd.Dat
         qualified.sort(key=batter_value, reverse=True)
         rest.sort(key=lambda p: float(stat_by_pcode[p].get("PA", 0) or 0), reverse=True)
         return (qualified + rest)[:n]
-
-    if is_offense:
-        # 후보 9명을 추린 뒤 그 안에서 GA로 순서(타순)를 최적화
-        candidates = pick_best(batters["pCode"].tolist(), 9)
-        best_order = _ga_batting_order(candidates, stat_by_pcode, rng)
-        return best_order
 
     def top_by_position(pos, n):
         pool = batters[batters["position"] == pos]["pCode"].tolist()
@@ -182,4 +177,9 @@ def decide_lineup(is_offense: bool, my_team: pd.DataFrame, opponent_team: pd.Dat
 
     pitcher = max(pitchers["pCode"].tolist(), key=pitcher_score)
 
-    return chosen_if + chosen_of + chosen_c + [dh, pitcher]
+    defense = chosen_if + chosen_of + chosen_c + [dh, pitcher]
+
+    # 선발한 9명(투수 제외)의 타순을 GA로 최적화
+    offense = _ga_batting_order(list(defense[:9]), stat_by_pcode, rng)
+
+    return {"defense": defense, "offense": offense}

@@ -12,25 +12,22 @@ strategy_naive_best.py
 메타휴리스틱 알고리즘이 이 대조군을 얼마나 이기는지가 곧 "전략이 통하는가"의 척도가 된다.
 (수업에서 baseline으로 함께 돌려보길 권장)
 
-이닝 선발 규칙: 수비 호출에서 투수 포함 10명을 선발합니다. 공격 호출의 my_team은 그 10명만
-포함하므로, 투수 제외 9명의 타순만 정하세요. context["selected_lineup"]은 수비 자리 순서의
-선발 10명입니다. 공수교대 때 선수·투수 교체는 없으며, 다음 이닝 시작에 다시 선발합니다.
+이닝 선발 규칙: decide_lineup은 이닝마다 팀당 한 번 호출되며 {"defense": [10명], "offense": [9명]}
+을 반환합니다. defense는 [내야x4, 외야x3, 포수, DH, 투수] 순서, offense는 defense의 앞 9명
+(투수 제외)을 타순대로 재배열한 것입니다. 공수교대 때 교체는 없으며 다음 이닝 시작에 다시 선발합니다.
 """
 import random
 
 import pandas as pd
 
 
-def decide_lineup(is_offense: bool, my_team: pd.DataFrame, opponent_team: pd.DataFrame,
+def decide_lineup(my_team: pd.DataFrame, opponent_team: pd.DataFrame,
                    matchups: pd.DataFrame, context: dict, rng: random.Random):
     batters = my_team[my_team["role"] == "타자"]
     pitchers = my_team[my_team["role"] == "투수"]
 
     # 체력도, 표본 크기도 보지 않고 그냥 시즌 성적 순으로만 뽑는다
     ranked = batters.assign(_s=batters["OPS"].fillna(0.0)).sort_values("_s", ascending=False)
-
-    if is_offense:
-        return ranked["pCode"].tolist()[:9]
 
     def top(pos, n):
         return ranked[ranked["position"] == pos]["pCode"].tolist()[:n]
@@ -40,4 +37,10 @@ def decide_lineup(is_offense: bool, my_team: pd.DataFrame, opponent_team: pd.Dat
     dh = next(p for p in ranked["pCode"].tolist() if p not in used)
     # 방어율 1위 투수를 무조건 (지쳤든 말든) 계속 올린다
     ace = pitchers.assign(_e=pitchers["ERA"].fillna(99.0)).sort_values("_e")["pCode"].tolist()[0]
-    return ifs + ofs + cs + [dh, ace]
+    defense = ifs + ofs + cs + [dh, ace]
+
+    # 공격 타순: 선발 9명을 그냥 시즌 OPS 순으로 세운다 (표본 크기 무시)
+    rank_pos = {p: i for i, p in enumerate(ranked["pCode"].tolist())}
+    offense = sorted(defense[:9], key=lambda p: rank_pos.get(p, 999))
+
+    return {"defense": defense, "offense": offense}

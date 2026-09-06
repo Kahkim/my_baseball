@@ -167,7 +167,7 @@ class SeriesSession:
         if self.current_game is not None:
             state["game"] = self.game_meta()
             state["events"] = self.current_game.events
-            state["timings"] = [{"inning": t.inning, "half": t.half, "team": t.team, "role": t.role,
+            state["timings"] = [{"inning": t.inning, "team": t.team,
                                   "status": t.status, "elapsed_sec": round(t.elapsed_sec, 3)}
                                  for t in self.current_game.timings]
         return state

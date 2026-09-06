@@ -159,8 +159,8 @@ def main():
     check("라인업 선발은 이닝당 1회 (하프이닝마다 X)",
           n_prepare * 2 >= n_half and n_prepare <= (n_half + 1) // 2 + 1,
           f"이닝 선발 {n_prepare}회 / 하프이닝 {n_half}개")
-    check("이닝 선발 1회당 알고리즘 4회 호출(양팀 공격+수비)",
-          all(c == 4 for c in calls_per_prepare), f"{calls_per_prepare}")
+    check("이닝 선발 1회당 알고리즘 2회 호출(양팀 각 1회)",
+          all(c == 2 for c in calls_per_prepare), f"{calls_per_prepare}")
     check("2단계 실행 결과도 배치와 동일", g3.result == r1)
     # 같은 이닝을 두 번 준비하지 않는지 (초가 끝나 말이 남아 있을 때도)
     g4 = Game(ld, home, away, paths, seed=99)
@@ -177,13 +177,13 @@ def main():
     from kbo_sim.student_check import full_check, static_check
     tmp_c = tempfile.mkdtemp()
     cases = {
-        "sig": ("def decide_lineup(a, b, c, d, e, f):\n    return []\n", "error", "인자 이름"),
+        "sig": ("def decide_lineup(a, b, c, d, e):\n    return {}\n", "error", "인자 이름"),
         "nofunc": ("def other():\n    return []\n", "error", "함수가 없습니다"),
         "syntax": ("def decide_lineup(x)\n    pass\n", "error", "문법 오류"),
-        "globalrandom": ("import random\ndef decide_lineup(is_offense, my_team, opponent_team,"
+        "globalrandom": ("import random\ndef decide_lineup(my_team, opponent_team,"
                           " matchups, context, rng):\n    random.seed(1)\n    "
-                          "return my_team['pCode'].tolist()[:9]\n", "warning", "rng"),
-        "noreturn": ("def decide_lineup(is_offense, my_team, opponent_team, matchups, context, rng):\n"
+                          "return {'defense': [], 'offense': []}\n", "warning", "rng"),
+        "noreturn": ("def decide_lineup(my_team, opponent_team, matchups, context, rng):\n"
                       "    x = 1\n", "error", "return"),
     }
     for key, (src, kind, needle) in cases.items():
@@ -206,9 +206,9 @@ def main():
     print("[4] 학생 코드 격리 / 폴백")
     tmp = tempfile.mkdtemp()
     files = {
-        "timeout": "import time\ndef decide_lineup(is_offense, my_team, opponent_team, matchups, context, rng):\n    time.sleep(60)\n",
-        "crash": "def decide_lineup(is_offense, my_team, opponent_team, matchups, context, rng):\n    raise RuntimeError('boom')\n",
-        "invalid": "def decide_lineup(is_offense, my_team, opponent_team, matchups, context, rng):\n    p = my_team['pCode'].tolist()\n    return [p[0], p[0]]\n",
+        "timeout": "import time\ndef decide_lineup(my_team, opponent_team, matchups, context, rng):\n    time.sleep(60)\n",
+        "crash": "def decide_lineup(my_team, opponent_team, matchups, context, rng):\n    raise RuntimeError('boom')\n",
+        "invalid": "def decide_lineup(my_team, opponent_team, matchups, context, rng):\n    p = my_team['pCode'].tolist()\n    return {'defense': [p[0]] * 10, 'offense': [p[0]] * 9}\n",
     }
     for key, src in files.items():
         with open(os.path.join(tmp, key + ".py"), "w", encoding="utf-8") as f:
@@ -314,16 +314,16 @@ def main():
     check("같은 시드면 학생 RNG도 재현됨", [s[0] for s in streams] == [r[0] for r in repeat])
 
     # (2) 도루자가 3아웃째면 그 타자는 타순을 넘기지 않는다
-    src = ("def decide_lineup(is_offense, my_team, opponent_team, matchups, context, rng):\n"
+    src = ("def decide_lineup(my_team, opponent_team, matchups, context, rng):\n"
            "    b = my_team[my_team['role']=='타자']\n"
            "    p = my_team[my_team['role']=='투수']\n"
-           "    if is_offense: return b['pCode'].tolist()[:9]\n"
            "    i = b[b['position']=='내야수']['pCode'].tolist()[:4]\n"
            "    o = b[b['position']=='외야수']['pCode'].tolist()[:3]\n"
            "    c = b[b['position']=='포수']['pCode'].tolist()[:1]\n"
            "    used = set(i+o+c)\n"
            "    dh = [x for x in b['pCode'].tolist() if x not in used][:1]\n"
-           "    return i+o+c+dh+p['pCode'].tolist()[:1]\n")
+           "    d = i+o+c+dh+p['pCode'].tolist()[:1]\n"
+           "    return {'defense': d, 'offense': d[:9]}\n")
     fixed_path = os.path.join(tmp, "fixed.py")
     with open(fixed_path, "w", encoding="utf-8") as f:
         f.write(src)
@@ -424,8 +424,8 @@ def main():
     hang_path = os.path.join(tmp, "hang.py")
     with open(hang_path, "w", encoding="utf-8") as f:
         f.write("import time\ntime.sleep(120)\n"
-                "def decide_lineup(is_offense, my_team, opponent_team, matchups, context, rng):\n"
-                "    return []\n")
+                "def decide_lineup(my_team, opponent_team, matchups, context, rng):\n"
+                "    return {}\n")
     t0 = time.time()
     rep = full_check(hang_path, ld, "삼성", "KT", 2.0)
     dt = time.time() - t0

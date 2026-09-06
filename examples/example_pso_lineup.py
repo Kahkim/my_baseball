@@ -20,9 +20,10 @@ PSO는 원래 연속공간 알고리즘이라 "선수 배정" 같은 조합 문�
 
 파라미터는 10초 제한에 여유 있게 들어오도록 작게 잡았다 (입자 18 × 세대 22).
 
-이닝 선발 규칙: 수비 호출에서 투수 포함 10명을 선발합니다. 공격 호출의 my_team은 그 10명만
-포함하므로, 투수 제외 9명의 타순만 정하세요. context["selected_lineup"]은 수비 자리 순서의
-선발 10명입니다. 공수교대 때 선수·투수 교체는 없으며, 다음 이닝 시작에 다시 선발합니다.
+이닝 선발 규칙: decide_lineup은 이닝마다 팀당 한 번 호출되며 {"defense": [10명], "offense": [9명]}
+을 반환합니다. defense는 [내야x4, 외야x3, 포수, DH, 투수] 순서, offense는 defense의 앞 9명
+(투수 제외)을 타순대로 재배열한 것입니다. 즉 PSO로 가중치 벡터를 탐색해 출전 10명을 정하고,
+그 9명(투수 제외)의 타순을 같은 가중치로 배치합니다. 공수교대 때 교체는 없습니다.
 """
 import random
 
@@ -110,10 +111,9 @@ def decode_defense(x, bat, pit):
     return assign
 
 
-def decode_offense(x, bat, start_index):
-    """가중치 → 9명 타순. 점수 상위 9명을 뽑아 출루형은 앞, 장타형은 중심타선에 배치."""
-    ranked = sorted(bat, key=lambda p: batter_score(bat[p], x, None), reverse=True)[:9]
-    # 중심타선(3~5번)에는 장타 비중이 큰 선수, 1~2번에는 출루 비중이 큰 선수
+def decode_offense(x, bat, nine):
+    """고정된 9명(nine)을 타순으로 배치. 출루형은 앞, 장타형은 중심타선(3~5번)에."""
+    ranked = list(nine)
     by_power = sorted(ranked, key=lambda p: bat[p]["slg"], reverse=True)
     heart = by_power[:3]
     rest = [p for p in ranked if p not in set(heart)]
@@ -126,14 +126,7 @@ def decode_offense(x, bat, start_index):
     return order
 
 
-def evaluate(x, bat, pit, is_offense, start_index):
-    if is_offense:
-        order = decode_offense(x, bat, start_index)
-        s = 0.0
-        for i, p in enumerate(order):
-            b = bat[p]
-            s += (b["obp"] * SLOT_OBP_W[i] + b["slg"] * SLOT_SLG_W[i]) * (0.6 + 0.4 * b["health"])
-        return s
+def evaluate(x, bat, pit, start_index):
     assign = decode_defense(x, bat, pit)
     s = 0.0
     for slot, pcode in enumerate(assign):
@@ -152,11 +145,11 @@ def evaluate(x, bat, pit, is_offense, start_index):
     return s
 
 
-def pso(bat, pit, is_offense, start_index, rng: random.Random):
+def pso(bat, pit, start_index, rng: random.Random):
     pos = [[rng.uniform(X_LO, X_HI) for _ in range(DIM)] for _ in range(N_PARTICLES)]
     vel = [[rng.uniform(-V_MAX, V_MAX) for _ in range(DIM)] for _ in range(N_PARTICLES)]
     pbest = [list(p) for p in pos]
-    pbest_val = [evaluate(p, bat, pit, is_offense, start_index) for p in pos]
+    pbest_val = [evaluate(p, bat, pit, start_index) for p in pos]
     g = max(range(N_PARTICLES), key=lambda i: pbest_val[i])
     gbest, gbest_val = list(pbest[g]), pbest_val[g]
 
@@ -169,7 +162,7 @@ def pso(bat, pit, is_offense, start_index, rng: random.Random):
                      + C2 * r2 * (gbest[d] - pos[i][d]))
                 vel[i][d] = max(-V_MAX, min(V_MAX, v))
                 pos[i][d] = max(X_LO, min(X_HI, pos[i][d] + vel[i][d]))
-            val = evaluate(pos[i], bat, pit, is_offense, start_index)
+            val = evaluate(pos[i], bat, pit, start_index)
             if val > pbest_val[i]:
                 pbest[i], pbest_val[i] = list(pos[i]), val
                 if val > gbest_val:
@@ -177,10 +170,11 @@ def pso(bat, pit, is_offense, start_index, rng: random.Random):
     return gbest
 
 
-def decide_lineup(is_offense: bool, my_team: pd.DataFrame, opponent_team: pd.DataFrame,
+def decide_lineup(my_team: pd.DataFrame, opponent_team: pd.DataFrame,
                    matchups: pd.DataFrame, context: dict, rng: random.Random):
     bat, pit = build_profiles(my_team)
     start_index = context.get("batting_order_start_index", 0)
-    best_x = pso(bat, pit, is_offense, start_index, rng)
-    return decode_offense(best_x, bat, start_index) if is_offense \
-        else decode_defense(best_x, bat, pit)
+    best_x = pso(bat, pit, start_index, rng)
+    defense = decode_defense(best_x, bat, pit)
+    offense = decode_offense(best_x, bat, list(defense[:9]))
+    return {"defense": defense, "offense": offense}

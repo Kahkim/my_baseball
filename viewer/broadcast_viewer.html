@@ -76,10 +76,6 @@
   .inning-tag{font-size:16px;font-weight:800;color:var(--accent);white-space:nowrap;}
   .matchup{font-size:12px;color:var(--sub);text-align:center;line-height:1.6;flex:1;}
   .matchup b{color:var(--text);}
-  .countbox{font-size:12px;color:var(--sub);white-space:nowrap;}
-  .outdots span{display:inline-block;width:10px;height:10px;border-radius:50%;border:1px solid #56637a;
-                margin-left:3px;}
-  .outdots span.on{background:var(--bad);border-color:var(--bad);}
   #ground{display:block;width:100%;max-width:540px;height:auto;margin:0 auto;background:#0c1712;}
   .groundnote{padding:6px 12px;font-size:10.5px;color:var(--sub);background:#0f1622;
               border-top:1px solid var(--line);}
@@ -117,6 +113,10 @@
   table.tm td.num{text-align:right;font-variant-numeric:tabular-nums;}
   table.tm td.bad{color:var(--bad);font-weight:700;}
   .disc{margin-top:14px;font-size:11px;color:var(--sub);line-height:1.7;}
+  .scorebox tr.scoring td.tot{animation:score-flash 1.8s ease-out;}
+  .scorebox td.score-flash{animation:score-flash 1.8s ease-out;}
+  @keyframes score-flash{0%,35%{background:#ffdf65;color:#15202b;}100%{background:transparent;}}
+  @media(prefers-reduced-motion:reduce){.scorebox tr.scoring td.tot,.scorebox td.score-flash{animation:none;}}
 </style>
 </head>
 <body>
@@ -153,9 +153,8 @@
         <div class="situation">
           <div class="inning-tag" id="inningTag">-</div>
           <div class="matchup" id="matchupInfo"></div>
-          <div class="countbox">OUT <span class="outdots" id="outDots"></span></div>
         </div>
-        <svg id="ground" viewBox="0 0 520 462" preserveAspectRatio="xMidYMid meet"></svg>
+        <svg id="ground" viewBox="0 0 520 546" preserveAspectRatio="xMidYMid meet"></svg>
         <div class="groundnote">※ 내야/외야 세부 자리(1루수·유격수 등)는 <b>화면 표시용 배치</b>입니다 —
            엔진은 내야수/외야수 그룹만 구분하며 세부 포지션은 지정하지 않습니다.</div>
       </div>
@@ -183,7 +182,7 @@
 <script>
 const S = { data:null, events:[], idx:0, timer:null, speed:140,
             lineups:{}, inningRuns:{}, curBatting:null, curFielding:null,
-            curBatter:null, curOuts:0, curBases:{}, lastPlay:null,
+            curBatter:null, curOuts:0, curBalls:0, curStrikes:0, curBases:{}, lastPlay:null,
             lastScore:{}, lastHits:{}, lastErrors:{}, finished:false };
 let embSeq = 0;
 const el = id => document.getElementById(id);
@@ -261,6 +260,41 @@ function playerMark(x,y,label,color,opts){
     <text x="${x}" y="${y+r+11}" text-anchor="middle" font-size="10" font-weight="700" fill="#fff"
       stroke="#0c1712" stroke-width="2.6" paint-order="stroke" font-family="inherit">${esc(label)}</text>`;
 }
+/* 그라운드 좌하단 상시 상황판: 현재 투수·타자(팀 로고) + B/S/O 카운트 */
+function countChip(x,y,team){
+  const code = esc((team.code||team.name||'').slice(0,3));
+  return `<circle cx="${x}" cy="${y}" r="8.5" fill="${team.color||'#3a4b66'}" stroke="#fff" stroke-width="1.2"/>
+    <text x="${x}" y="${y+3}" text-anchor="middle" font-size="7.5" font-weight="800" fill="#fff">${code}</text>`;
+}
+function countPanel(){
+  if(!S.data || !S.curFielding) return '';
+  const fTeam = S.data.home.name===S.curFielding ? S.data.home : S.data.away;
+  const bTeam = S.data.home.name===S.curBatting  ? S.data.home : S.data.away;
+  const def = (S.lineups[S.curFielding]||{}).defense;
+  const pName = def ? nameOf(def[9]) : '-';
+  const bName = S.curBatter ? nameOf(S.curBatter) : '-';
+  const nameRow = (y,label,team,name) => `
+    <text x="16" y="${y+4}" font-size="10" font-weight="800" fill="#8b98af">${label}</text>
+    ${countChip(38,y,team)}
+    <text x="53" y="${y+4}" font-size="12" font-weight="800" fill="#e8edf5"
+      stroke="#0c1712" stroke-width="2.6" paint-order="stroke">${esc(name)}</text>`;
+  const dotRow = (y,letter,n,total,color) => {
+    let s = `<text x="15" y="${y+4}" font-size="11" font-weight="800" fill="#e8edf5">${letter}</text>`;
+    for(let i=0;i<total;i++){ const on = i < n;
+      s += `<circle cx="${34+i*17}" cy="${y}" r="6.5" fill="${on?color:'#2a2f38'}"
+             stroke="${on?color:'#4a5568'}" stroke-width="1.4"/>`; }
+    return s;
+  };
+  return `<g class="count-panel" font-family="inherit">
+    <rect x="6" y="450" width="150" height="94" rx="9" fill="#0b1220" fill-opacity=".82"
+      stroke="#31405c" stroke-width="1.5"/>
+    ${nameRow(467,'투',fTeam,pName)}
+    ${nameRow(486,'타',bTeam,bName)}
+    ${dotRow(506,'B',S.curBalls||0,3,'#41d15f')}
+    ${dotRow(523,'S',S.curStrikes||0,2,'#ffd23e')}
+    ${dotRow(539,'O',S.curOuts||0,2,'#ff4d4d')}
+  </g>`;
+}
 function renderGround(){
   const g = el('ground'); if(!g) return;
   if(!S.data){ g.innerHTML = fieldBase(); return; }
@@ -300,7 +334,9 @@ function renderGround(){
       <text x="${tx}" y="${ty-11}" text-anchor="middle" font-size="10.5" font-weight="800" fill="${color}"
         stroke="#0c1712" stroke-width="2.6" paint-order="stroke">${esc(S.lastPlay.label||'')}</text>`;
   }
-  g.innerHTML = fieldBase()+runners+marks+batter+ball;
+  const effect = g.querySelector('.ground-effects');
+  g.innerHTML = fieldBase()+runners+marks+batter+ball+countPanel();
+  if (effect) g.appendChild(effect);
 }
 function computePlay(ev){
   const def = (S.lineups[S.curFielding]||{}).defense;
@@ -333,8 +369,9 @@ el('fileInput').addEventListener('change', e => {
 });
 
 function init(){
+  clearGroundEffect(); S.nextBatter=null; S.scoringTeam=null;
   S.events=S.data.events||[]; S.idx=0; S.lineups={}; S.inningRuns={};
-  S.curBatting=null; S.curFielding=null; S.curBatter=null; S.curOuts=0; S.curBases={};
+  S.curBatting=null; S.curFielding=null; S.curBatter=null; S.curOuts=0; S.curBalls=0; S.curStrikes=0; S.curBases={};
   S.lastPlay=null; S.lastScore={}; S.lastHits={}; S.lastErrors={}; S.finished=false;
   el('emptyState').style.display='none';
   el('app').classList.add('show'); el('controls').style.display='flex';
@@ -353,15 +390,15 @@ function renderScore(){
   const meta=d.algo_meta||{};
   const row = t => {
     let cells='';
-    for(let i=1;i<=N;i++){ const v=(S.inningRuns[t.name]||{})[i]; cells+=`<td>${v==null?'-':v}</td>`; }
-    return `<tr class="${S.curBatting===t.name?'batting':''}"><td class="teamcell"><div class="inner">
+    for(let i=1;i<=N;i++){ const v=(S.inningRuns[t.name]||{})[i]; cells+=`<td class="${S.scoringTeam===t.name && i===S.curInning?'score-flash':''}">${v==null?'-':v}</td>`; }
+    return `<tr class="${S.curBatting===t.name?'batting':''} ${S.scoringTeam===t.name?'scoring':''}"><td class="teamcell"><div class="inner">
       ${emblem(t,30)}<span>${esc(t.name)}<div class="stu">${esc((meta[t.name]&&meta[t.name].student_name)||'')}</div>
       </span></div></td>${cells}<td class="tot">${S.lastScore[t.name]||0}</td>
       <td>${S.lastHits[t.name]||0}</td><td>${S.lastErrors[t.name]||0}</td></tr>`;
   };
   el('scoreTable').innerHTML = head+'<tbody>'+row(d.away)+row(d.home)+'</tbody>';
 }
-function renderOuts(){ el('outDots').innerHTML=[0,1,2].map(i=>`<span class="${i<S.curOuts?'on':''}"></span>`).join(''); }
+function renderOuts(){}   /* 아웃 표시는 그라운드 좌하단 B/S/O 상황판이 담당 (renderGround) */
 function renderStatus(){
   const r=S.data.result||{};
   const parts=[`<span class="pill">${esc(S.data.away.name)} vs ${esc(S.data.home.name)}</span>`];
@@ -410,20 +447,20 @@ function renderLineups(){
 }
 /* 계산시간: 막대그래프 없이 간단한 표 */
 function renderTiming(){
+  const away = S.data.away.name, home = S.data.home.name;
   const rows={};
   for(const t of (S.data.timings||[])){
-    const k = t.inning+(t.half==='top'?'회초':'회말');
-    rows[k]=rows[k]||{off:null,def:null};
-    rows[k][t.role==='offense'?'off':'def']=t;
+    rows[t.inning]=rows[t.inning]||{};
+    rows[t.inning][t.team]=t;
   }
   const fmt = t => t ? `${t.elapsed_sec.toFixed(3)}s${t.status!=='ok'?` (${t.status})`:''}` : '-';
   const cls = t => (t && t.status!=='ok') ? 'num bad' : 'num';
   el('timingTable').innerHTML =
-    `<thead><tr><th style="width:72px;">이닝</th><th>공격팀</th><th style="width:110px;">계산시간</th>
-      <th>수비팀</th><th style="width:110px;">계산시간</th></tr></thead><tbody>` +
+    `<thead><tr><th style="width:72px;">이닝</th><th>${esc(away)}</th><th style="width:120px;">계산시간</th>
+      <th>${esc(home)}</th><th style="width:120px;">계산시간</th></tr></thead><tbody>` +
     Object.keys(rows).map(k=>{ const r=rows[k];
-      return `<tr><td>${k}</td><td>${esc(r.off?r.off.team:'-')}</td><td class="${cls(r.off)}">${fmt(r.off)}</td>
-        <td>${esc(r.def?r.def.team:'-')}</td><td class="${cls(r.def)}">${fmt(r.def)}</td></tr>`; }).join('') +
+      return `<tr><td>${k}회</td><td>${esc(away)}</td><td class="${cls(r[away])}">${fmt(r[away])}</td>
+        <td>${esc(home)}</td><td class="${cls(r[home])}">${fmt(r[home])}</td></tr>`; }).join('') +
     `</tbody>`;
   const tot={};
   for(const t of (S.data.timings||[])){
@@ -442,7 +479,120 @@ function addLine(text,cls){
   d.className='ln '+(cls||''); d.textContent=text;
   f.appendChild(d); f.scrollTop=f.scrollHeight;
 }
+// Keep effects separate from field redraws so a score can finish at inning end.
+let groundEffectUntil = 0;
+function clearGroundEffect(){
+  el('ground').querySelector('.ground-effects')?.remove();
+  groundEffectUntil = 0;
+}
+function showGroundEffect(ev){
+  if (!['pitch','pa_result'].includes(ev.type)) return;
+  const runs = ev.type === 'pa_result' ? Number(ev.runs || 0) : 0;
+  const calls = {
+    ball:['볼', '#7edcff'], called_strike:['스트라이크!', '#ffcd57'],
+    swinging_strike:['헛스윙!', '#ff9c58'], foul:['파울!', '#c4b5fd'],
+    hbp:['몸에 맞는 볼', '#7edcff'], inplay:['타격!', '#8aefb0'],
+    SO:['삼진!', '#ff707c'], BB:['볼넷!', '#7edcff'], HBP:['사구', '#7edcff'],
+    HR:['홈런!', '#ffdf65'], '1B':['안타!', '#8aefb0'],
+    '2B':['2루타!', '#8aefb0'], '3B':['3루타!', '#8aefb0'], OUT:['아웃!', '#ff707c']
+  };
+  let call = calls[ev.type === 'pitch' ? ev.kind : ev.event];
+  if (ev.type === 'pitch' && ev.strikes === 3)
+    call = [ev.kind === 'swinging_strike' ? '헛스윙 삼진!' : '루킹 삼진!', '#ff707c'];
+  if (S.lastOutAdded > 0 && ev.event !== 'SO')
+    call = [S.lastOutAdded > 1 ? '더블 플레이!' : '아웃!', '#ff707c'];
+  if (!call && !runs) return;
+  clearGroundEffect();
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // 중계속도를 이펙트 길이에 반영한다 (보통=340 기준). 빠르게(160)면 이펙트도 절반으로 줄어
+  // 실제로 빨라진다. 득점 연출은 최소 700ms는 보이도록 하한을 둔다.
+  const spd = parseInt(el('speedSel').value, 10) || 0;
+  const k = spd === 0 ? 0 : spd / 340;
+  const duration = runs
+    ? Math.max(700, Math.round((1550 + (runs - 1) * 420) * k))
+    : Math.round((S.lastOutAdded > 0 ? 2200 : 950) * k);
+  groundEffectUntil = performance.now() + duration;
+  const layer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  layer.setAttribute('class', 'ground-effects');
+  layer.setAttribute('role', 'status');
+  layer.setAttribute('aria-label', runs ? `홈인! ${S.curBatting} ${runs}점 득점` : call[0]);
+  const badge = (title, sub, color) => `<g transform="translate(405 500)">
+    <rect x="-99" y="-33" width="198" height="64" rx="15" fill="#091521" fill-opacity=".94" stroke="${color}" stroke-width="2"/>
+    <text y="-5" text-anchor="middle" font-family="inherit" font-size="27" font-weight="900" fill="${color}">${esc(title)}</text>
+    <text y="18" text-anchor="middle" font-family="inherit" font-size="12" font-weight="700" fill="#fff">${esc(sub)}</text></g>`;
+  const count = S.lastOutAdded > 0 ? (ev.outs >= 3 ? '3 OUT · 공수 교대' : ev.outs + ' OUT · 잠시 후 다음 타자') : ev.type === 'pitch' ? `${ev.seq}구 · ${ev.balls} BALL / ${ev.strikes} STRIKE` : (ev.batter_name || '');
+  const started = performance.now();
+  function draw(now){
+    if (!layer.isConnected) return;
+    const elapsed = now - started;
+    if (elapsed >= duration){ layer.remove(); return; }
+    let content = '';
+    if (runs){
+      // Each marker depicts the final stretch from third base to home.
+      const arrived = reduced ? runs : Math.min(runs, Math.max(0, Math.floor((elapsed - 650) / 420) + 1));
+      for (let i = 0; i < runs && !reduced; i++){
+        const progress = Math.max(0, Math.min(1, (elapsed - i * 420) / 650));
+        if (elapsed < i * 420 || progress === 1) continue;
+        const x = F.base[3][0] + (F.home[0] - F.base[3][0]) * progress;
+        const y = F.base[3][1] + (F.home[1] - F.base[3][1]) * progress;
+        content += `<path d="M186 331 L260 405" fill="none" stroke="#ffdf65" stroke-width="4" stroke-dasharray="5 6" opacity=".65"/>
+          <circle cx="${x}" cy="${y}" r="10" fill="#ffdf65" stroke="#fff" stroke-width="2"/>
+          <text x="${x}" y="${y+4}" text-anchor="middle" font-size="10" font-weight="900" fill="#18202b">주</text>`;
+      }
+      if (arrived){
+        const pulse = reduced ? 0 : ((elapsed - 650) % 420) / 420;
+        content += `<circle cx="260" cy="405" r="${15 + pulse * 22}" fill="none" stroke="#ffdf65" stroke-width="4" opacity="${1-pulse*.8}"/>`;
+      }
+      content += badge(arrived ? `홈인! +${arrived}점` : '홈으로!', `${S.curBatting} · 이번 타석 ${runs}점${ev.event === 'HR' ? ' · 홈런!' : ''}`, '#ffdf65');
+    } else {
+      content = badge(call[0], count, call[1]);
+    }
+    layer.innerHTML = content;
+    const fade = Math.min(1, (duration - elapsed) / 220);
+    layer.setAttribute('opacity', reduced ? 1 : fade);
+    if (!reduced && !runs){
+      const pop = Math.min(1, elapsed / 170);
+      const scale = .82 + .18 * Math.sin(pop * Math.PI / 2);
+      layer.setAttribute('transform', `translate(405 500) scale(${scale}) translate(-405 -500)`);
+    }
+    requestAnimationFrame(draw);
+  }
+  el('ground').appendChild(layer);
+  requestAnimationFrame(draw);
+}
 function applyEvent(ev){
+  const instant = typeof S.speed === 'number' ? S.speed === 0 : el('speedSel').value === '0';
+  S.lastOutAdded = ev.type === 'pa_result' ? Math.max(0, ev.outs - S.curOuts) : 0;
+  S.scoringTeam = ev.type === 'pa_result' && ev.runs > 0 ? S.curBatting : null;
+  if (['half_start','inning_lineup'].includes(ev.type)) {
+    clearGroundEffect(); S.nextBatter = null;
+  }
+  if (ev.type === 'half_start') {
+    S.inningRuns[ev.batting_team] = S.inningRuns[ev.batting_team] || {};
+    S.inningRuns[ev.batting_team][ev.inning] = 0;
+  }
+  if (ev.type === 'pa_result') {
+    S.curBatter = (S.lineups[S.curBatting]?.batting_order || []).find(p=>p.pCode===ev.batter) || S.curBatter;
+    const innings = S.inningRuns[S.curBatting] || (S.inningRuns[S.curBatting] = {});
+    innings[ev.inning] = (innings[ev.inning] || 0) + (ev.runs || 0);
+  }
+  if (ev.type === 'pitch') {
+    if (S.nextBatter) { S.curBatter = S.nextBatter; S.nextBatter = null; }
+    S.curBalls = ev.balls; S.curStrikes = ev.strikes;
+    S.lastPlay = null;
+    renderGround(); renderLineups();
+  }
+  applyEventState(ev);
+  if (!S.suppressEffects && !instant) {
+    showGroundEffect(ev);
+    if (S.lastOutAdded > 0) {
+      const spd = parseInt(el('speedSel').value, 10) || 340;
+      groundEffectUntil = Math.max(groundEffectUntil,
+        performance.now() + Math.round(2200 * (spd / 340)));
+    }
+  }
+}
+function applyEventState(ev){
   switch(ev.type){
     case 'lineup_decision': addLine('🧠 '+ev.text, ev.status==='ok'?'lineupmsg':'warn'); break;
     case 'algo_fallback': addLine('⚠ '+ev.text,'warn'); break;
@@ -454,19 +604,20 @@ function applyEvent(ev){
       S.lineups[home]={role:'defense',defense:ev.teams[home].defense,batting_order:null,
                         start_index:ev.teams[away].start_index};
       S.curBatter=ev.teams[away].offense[ev.teams[away].start_index % 9];
-      S.curOuts=0; S.curBases={}; S.lastPlay=null;
+      S.curOuts=0; S.curBalls=0; S.curStrikes=0; S.curBases={}; S.lastPlay=null;
       el('inningTag').textContent=`${ev.inning}회 시작`;
       el('matchupInfo').innerHTML=`<b>${ev.inning}회</b> 양 팀 출전명단 확정`;
       addLine(ev.text,'inning');
       renderOuts(); renderGround(); renderLineups(); renderScore(); break;
     }
     case 'half_start': {
+      S.curInning=ev.inning;
       S.curBatting=ev.batting_team; S.curFielding=ev.fielding_team;
       S.lineups[ev.batting_team]={role:'offense',batting_order:ev.batting_order,defense:null,
                                    start_index:ev.batting_order_start_index};
       S.lineups[ev.fielding_team]={role:'defense',defense:ev.defense,batting_order:null,
                                     start_index:ev.batting_order_start_index};
-      S.curOuts=0; S.curBases={}; S.lastPlay=null;
+      S.curOuts=0; S.curBalls=0; S.curStrikes=0; S.curBases={}; S.lastPlay=null;
       S.curBatter=ev.batting_order[ev.batting_order_start_index % 9];
       el('inningTag').textContent=`${ev.inning}회 ${ev.half==='top'?'초':'말'}`;
       const p=ev.defense[9];
@@ -482,7 +633,7 @@ function applyEvent(ev){
       if(ev.event==='HR') cls='hr';
       else if(['1B','2B','3B','BB','HBP'].includes(ev.event)) cls='hit';
       addLine(`${ev.batter_name||''} : ${ev.description}${ev.runs?`  (+${ev.runs}점)`:''}`, cls);
-      S.curOuts=ev.outs; S.curBases=ev.bases; S.lastScore=ev.score;
+      S.curOuts=ev.outs; S.curBalls=0; S.curStrikes=0; S.curBases=ev.bases; S.lastScore=ev.score;
       S.lastPlay = computePlay(ev);
       for(const t of Object.keys(S.lineups)){
         const info=S.lineups[t];
@@ -497,7 +648,7 @@ function applyEvent(ev){
       const off=S.lineups[S.curBatting];
       if(off && off.batting_order){
         const cur=off.batting_order.findIndex(p=>p.pCode===ev.batter);
-        S.curBatter=off.batting_order[(cur+1)%9];
+        S.nextBatter=off.batting_order[(cur+1)%9];
       }
       renderOuts(); renderGround(); renderLineups(); renderScore(); break;
     }
@@ -506,24 +657,26 @@ function applyEvent(ev){
       S.inningRuns[ev.batting_team][ev.inning]=ev.runs;
       S.lastScore=ev.score; S.lastHits=ev.hits||S.lastHits; S.lastErrors=ev.errors||S.lastErrors;
       S.curBatter=null; S.lastPlay=null; S.curBases={};
+      S.curOuts=0; S.curBalls=0; S.curStrikes=0;
       addLine(ev.text,'sec'); renderGround(); renderScore(); break;
     case 'game_end':
       S.finished=true; addLine('🏆 '+ev.text,'fin'); renderStatus(); break;
   }
 }
 function updatePos(){ el('posLabel').textContent=`${S.idx} / ${S.events.length}`; el('seekBar').value=S.idx; }
-function step(){ if(S.idx>=S.events.length){ stop(); return; } applyEvent(S.events[S.idx++]); updatePos(); }
+function step(){ if(S.timer && performance.now() < groundEffectUntil) return; if(S.idx>=S.events.length){ stop(); return; } applyEvent(S.events[S.idx++]); updatePos(); }
 function stop(){ clearInterval(S.timer); S.timer=null; el('btnPlay').disabled=false; el('btnPause').disabled=true; }
 function seekTo(target){
-  stop(); el('feed').innerHTML='';
+  stop(); clearGroundEffect(); S.nextBatter=null; S.suppressEffects=true; el('feed').innerHTML='';
   S.lineups={}; S.inningRuns={}; S.lastScore={}; S.lastHits={}; S.lastErrors={};
-  S.curBatting=null; S.curBatter=null; S.curBases={}; S.curOuts=0; S.lastPlay=null; S.finished=false; S.idx=0;
+  S.curBatting=null; S.curBatter=null; S.curBases={}; S.curOuts=0; S.curBalls=0; S.curStrikes=0; S.lastPlay=null; S.finished=false; S.idx=0;
   while(S.idx<target && S.idx<S.events.length) applyEvent(S.events[S.idx++]);
-  renderOuts(); renderGround(); renderScore(); renderLineups(); renderStatus(); updatePos();
+  S.suppressEffects=false; renderOuts(); renderGround(); renderScore(); renderLineups(); renderStatus(); updatePos();
 }
 el('btnStep').onclick=step;
 const STOPS = new Set(['half_start','inning_lineup']);
 el('btnHalf').onclick=()=>{
+  clearGroundEffect();
   if(S.idx>=S.events.length) return;
   do{ applyEvent(S.events[S.idx++]); } while(S.idx<S.events.length && !STOPS.has(S.events[S.idx].type));
   while(S.idx<S.events.length && STOPS.has(S.events[S.idx].type)) applyEvent(S.events[S.idx++]);

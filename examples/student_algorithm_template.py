@@ -9,18 +9,20 @@ Tabu Search / PSO / GA 중 하나(또는 조합)로 구현하세요.
 ===============================================================
 지켜야 하는 것
 ===============================================================
-1. 함수 이름/인자 순서를 절대 바꾸지 마세요: decide_lineup(is_offense, my_team,
-   opponent_team, matchups, context, rng)
+1. 함수 이름/인자 순서를 절대 바꾸지 마세요:
+   decide_lineup(my_team, opponent_team, matchups, context, rng)
 2. 난수는 반드시 인자로 받은 rng(random.Random 인스턴스)만 사용하세요.
    전역 random 모듈이나 random.seed()를 쓰면 여러분 알고리즘 내부의 재현성에는
    문제가 없지만, 시뮬레이션 엔진 결과에는 어차피 영향을 주지 못합니다 (완전히
    분리된 RNG). 대신 채점/디버깅 시 여러분 알고리즘의 동작을 재현하려면 이 rng를
    써야 합니다.
-3. 반환값은 pCode(정수) 리스트입니다. my_team["pCode"] 컬럼 값을 그대로 쓰면 됩니다.
-   - 공격(is_offense=True): 9명, 투수 제외, 타순 순서
-   - 수비(is_offense=False): 10명, 순서 고정 [내야수x4, 외야수x3, 포수, DH, 투수]
-4. 제한시간(기본 10초)을 넘기면 명단을 자동 대체합니다. 공격 타순도 이번 선발 9명 안에서
-   대체됩니다. 프로세스 시작·import 비용을 포함하므로 실제 환경에서 반복 수를 조정하세요.
+3. 반환값은 {"defense": [10명], "offense": [9명]} 형태의 dict입니다.
+   pCode(정수) 리스트를 쓰면 되고, my_team["pCode"] 컬럼 값을 그대로 쓰면 됩니다.
+   - defense: 10명, 순서 고정 [내야수x4, 외야수x3, 포수, DH, 투수] (마지막이 투수)
+   - offense: 9명, 투수 제외, 타순 순서. defense의 앞 9명을 재배열한 것이어야 합니다.
+4. 이 함수는 이닝마다 팀당 한 번 호출됩니다 (한 번에 공수 명단을 모두 정함).
+   제한시간(기본 10초)을 넘기면 직전 이닝 명단으로 자동 대체합니다. 프로세스 시작·import
+   비용을 포함하므로 실제 환경에서 반복 수를 조정하세요.
 5. 적합도 함수 안에서 매번 DataFrame을 필터링하지 말고, 함수 시작 시 딕셔너리로
    한 번 캐싱해서 쓰세요 (아래 예시 참고).
 6. my_team의 AVG/OPS/ERA는 원본 값 그대로라 표본이 적은 선수는 왜곡되어 보입니다
@@ -29,9 +31,9 @@ Tabu Search / PSO / GA 중 하나(또는 조합)로 구현하세요.
 
 자세한 인자/반환값 스펙은 kbo_sim/student_api.py 모듈 docstring에 전부 설명되어 있습니다.
 
-이닝 선발 규칙: 수비 호출에서 투수 포함 10명을 선발합니다. 공격 호출의 my_team은 그 10명만
-포함하므로, 투수 제외 9명의 타순만 정하세요. context["selected_lineup"]은 수비 자리 순서의
-선발 10명입니다. 공수교대 때 선수·투수 교체는 없으며, 다음 이닝 시작에 다시 선발합니다.
+이닝 선발 규칙: 이닝마다 팀당 한 번 호출되어 그 이닝의 공격 타순과 수비 배치를 함께 정합니다.
+공수교대 때 선수·투수 교체는 없으며, 다음 이닝 시작에 다시 선발합니다. context의
+opp_pitcher_pcode/opp_catcher_pcode는 상대의 '직전 이닝' 수비 기준이며 1회엔 None입니다.
 """
 import random
 
@@ -59,7 +61,7 @@ def _num(v, default):
     return default if pd.isna(v) else v
 
 
-def decide_lineup(is_offense: bool, my_team: pd.DataFrame, opponent_team: pd.DataFrame,
+def decide_lineup(my_team: pd.DataFrame, opponent_team: pd.DataFrame,
                    matchups: pd.DataFrame, context: dict, rng: random.Random):
     # ------------------------------------------------------------------
     # 0) 자주 쓰는 형태로 미리 캐싱 (매 적합도 평가마다 DataFrame 필터링 금지!)
@@ -100,16 +102,9 @@ def decide_lineup(is_offense: bool, my_team: pd.DataFrame, opponent_team: pd.Dat
 
     # ------------------------------------------------------------------
     # 2) TODO: 여기를 Tabu Search / PSO / GA로 교체하세요.
-    #    예: 공격 - 타순(순열) 최적화 / 수비 - 포지션 배정 최적화
     #    아래는 "점수 높은 순으로 그리디하게 채우는" 매우 단순한 자리표시자(placeholder)입니다.
     # ------------------------------------------------------------------
-    if is_offense:
-        ordered = sorted(all_batter_codes, key=batter_score, reverse=True)
-        lineup = ordered[:9]
-        rng.shuffle(lineup)  # (예시일 뿐 - 실제로는 타순 최적화 로직으로 대체)
-        return lineup
-
-    # 수비: 포지션별 상위 점수 선수 + 나머지 중 1명 DH + 최고점 투수
+    # (a) 수비: 포지션별 상위 점수 선수 + 나머지 중 1명 DH + 최고점 투수
     chosen_if = sorted(ifs, key=batter_score, reverse=True)[:4]
     chosen_of = sorted(ofs, key=batter_score, reverse=True)[:3]
     chosen_c = sorted(cs, key=batter_score, reverse=True)[:1]
@@ -117,5 +112,9 @@ def decide_lineup(is_offense: bool, my_team: pd.DataFrame, opponent_team: pd.Dat
     remaining = [p for p in all_batter_codes if p not in used]
     dh = sorted(remaining, key=batter_score, reverse=True)[0] if remaining else all_batter_codes[0]
     pitcher = sorted(all_pitcher_codes, key=pitcher_score, reverse=True)[0]
+    defense = chosen_if + chosen_of + chosen_c + [dh, pitcher]
 
-    return chosen_if + chosen_of + chosen_c + [dh, pitcher]
+    # (b) 공격: 선발 9명(투수 제외)을 점수 순으로 세운다 (예시일 뿐 - 타순 최적화 로직으로 대체)
+    offense = sorted(defense[:9], key=batter_score, reverse=True)
+
+    return {"defense": defense, "offense": offense}

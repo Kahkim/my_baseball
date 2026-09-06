@@ -19,9 +19,10 @@ GA 예제(example_ga_lineup.py)가 "공격 타순"에 집중한다면, 이 예�
 
 공격 타순도 같은 Tabu Search 틀로 짧게 한 번 더 돌린다.
 
-이닝 선발 규칙: 수비 호출에서 투수 포함 10명을 선발합니다. 공격 호출의 my_team은 그 10명만
-포함하므로, 투수 제외 9명의 타순만 정하세요. context["selected_lineup"]은 수비 자리 순서의
-선발 10명입니다. 공수교대 때 선수·투수 교체는 없으며, 다음 이닝 시작에 다시 선발합니다.
+이닝 선발 규칙: decide_lineup은 이닝마다 팀당 한 번 호출되며 {"defense": [10명], "offense": [9명]}
+을 반환합니다. defense는 [내야x4, 외야x3, 포수, DH, 투수] 순서, offense는 defense의 앞 9명
+(투수 제외)을 타순대로 재배열한 것입니다. 즉 수비 배치를 Tabu Search로 최적화한 뒤,
+같은 틀로 그 9명의 타순을 짧게 한 번 더 최적화합니다. 공수교대 때 교체는 없습니다.
 """
 import random
 
@@ -209,17 +210,15 @@ def tabu_offense(candidates, bat, start_index, rng: random.Random):
 
 
 # ---------------------------------------------------------------- 제출 함수
-def decide_lineup(is_offense: bool, my_team: pd.DataFrame, opponent_team: pd.DataFrame,
+def decide_lineup(my_team: pd.DataFrame, opponent_team: pd.DataFrame,
                    matchups: pd.DataFrame, context: dict, rng: random.Random):
     bat, pit = build_profiles(my_team)
 
-    if not is_offense:
-        return tabu_defense(bat, pit, rng)
+    # 1) 수비 배치를 Tabu Search로 최적화
+    defense = tabu_defense(bat, pit, rng)
 
-    # 공격: 최소 출전 기준을 넘긴 선수 중 상위 9명을 후보로 두고 타순을 Tabu Search로 최적화
-    qualified = [p for p, v in bat.items() if v["pa"] >= QUALIFY_PA]
-    rest = [p for p in bat if p not in set(qualified)]
-    qualified.sort(key=lambda p: bat[p]["ops"] * (0.35 + 0.65 * bat[p]["health"]), reverse=True)
-    rest.sort(key=lambda p: bat[p]["pa"], reverse=True)
-    candidates = (qualified + rest)[:9]
-    return tabu_offense(candidates, bat, context.get("batting_order_start_index", 0), rng)
+    # 2) 그 9명(투수 제외)의 타순을 Tabu Search로 최적화
+    offense = tabu_offense(list(defense[:9]), bat,
+                           context.get("batting_order_start_index", 0), rng)
+
+    return {"defense": defense, "offense": offense}

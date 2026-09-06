@@ -78,7 +78,7 @@ def export_game(league: LeagueData, game: Game, algo_meta: Dict[str, dict] | Non
         "algo_meta": algo_meta or {},
         "result": game.result,
         "timings": [
-            {"inning": t.inning, "half": t.half, "team": t.team, "role": t.role,
+            {"inning": t.inning, "team": t.team,
              "status": t.status, "elapsed_sec": round(t.elapsed_sec, 3)}
             for t in game.timings
         ],

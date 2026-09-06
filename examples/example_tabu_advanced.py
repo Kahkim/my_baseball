@@ -12,9 +12,10 @@
 반복 수는 고정하므로 같은 입력/rng에서 결과가 재현됩니다.
 상수는 학습용 가정이며, 팀별 기록과 맞대결 표본을 이용해 보정합니다.
 
-이닝 선발 규칙: 수비 호출에서 투수 포함 10명을 선발합니다. 공격 호출의 my_team은 그 10명만
-포함하므로, 투수 제외 9명의 타순만 정하세요. context["selected_lineup"]은 수비 자리 순서의
-선발 10명입니다. 공수교대 때 선수·투수 교체는 없으며, 다음 이닝 시작에 다시 선발합니다.
+이닝 선발 규칙: decide_lineup은 이닝마다 팀당 한 번 호출되며 {"defense": [10명], "offense": [9명]}
+을 반환합니다. defense는 [내야x4, 외야x3, 포수, DH, 투수] 순서, offense는 defense의 앞 9명
+(투수 제외)을 타순대로 재배열한 것입니다. context["opp_pitcher_pcode"]는 상대의 '직전 이닝'
+투수 기준이며 1회엔 None입니다. 공수교대 때 교체는 없으며 다음 이닝 시작에 다시 선발합니다.
 """
 import math
 
@@ -132,7 +133,7 @@ def _tabu(initial, pool, slot_scores, rng, pair_bonus=None):
     return best
 
 
-def decide_lineup(is_offense, my_team, opponent_team, matchups, context, rng):
+def decide_lineup(my_team, opponent_team, matchups, context, rng):
     mine = {int(r["pCode"]): r for r in my_team.to_dict("records")}
     opponents = {int(r["pCode"]): r for r in opponent_team.to_dict("records")}
     bat = {p: r for p, r in mine.items() if r["role"] == "타자"}
@@ -143,31 +144,7 @@ def decide_lineup(is_offense, my_team, opponent_team, matchups, context, rng):
     rates = {p: _rates(r) for p, r in bat.items()}
     inning = int(context.get("inning", 1))
 
-    if is_offense:
-        pitcher_id = context.get("opp_pitcher_pcode")
-        pitcher = opponents.get(pitcher_id)
-        pitcher_rates = _rates(pitcher, pitcher=True) if pitcher is not None else PRIOR
-        pitcher_mult = _mult(pitcher, 10, True) if pitcher is not None else 1.0
-        profiles = {}
-        for p, row in bat.items():
-            rate = _match_rate(rates[p], pitcher_rates, matchup.get((pitcher_id, p)))
-            profiles[p] = _production(rate, _mult(row, 1.5), pitcher_mult)
-        # 실제 선두부터 탐색한 뒤 엔진이 요구하는 타순 인덱스에 맞춰 반환합니다.
-        start = int(context.get("batting_order_start_index", 0)) % 9
-        slot_scores = []
-        for turn in range(9):
-            urgency = 1.0 - 0.045 * turn
-            slot_scores.append({p: urgency * (v + 0.25 * obp) for p, (v, obp, slg) in profiles.items()})
-        def pair_bonus(left, right, turn):
-            return 0.09 * (1 - turn * 0.04) * profiles[left][1] * profiles[right][2]
-        pool = sorted(bat)
-        initial = sorted(pool, key=lambda p: slot_scores[0][p], reverse=True)[:9]
-        ordered = _tabu(initial, pool, slot_scores, rng, pair_bonus)
-        lineup = [0] * 9
-        for turn, p in enumerate(ordered):
-            lineup[(start + turn) % 9] = p
-        return lineup
-
+    # ================= 1) 수비 배치 + 투수 =================
     # 선발한 9명이 공격도 맡으므로 타격 기여와 수비 체력 손실을 함께 계산합니다.
     value_now = {p: _production(rates[p], _mult(row))[0] for p, row in bat.items()}
     best_nine = sorted(value_now.values(), reverse=True)[:9]
@@ -215,4 +192,31 @@ def decide_lineup(is_offense, my_team, opponent_team, matchups, context, rng):
         return total
     # 투수 선택은 야수 배정과 독립이므로 모든 투수를 직접 비교합니다.
     pitcher = min(sorted(pit), key=pitcher_cost)
-    return fielders + [pitcher]
+    defense = fielders + [pitcher]
+
+    # ================= 2) 그 9명(투수 제외)의 타순 =================
+    nine = list(defense[:9])
+    pitcher_id = context.get("opp_pitcher_pcode")
+    opp_pitcher_row = opponents.get(pitcher_id)
+    pitcher_rates = _rates(opp_pitcher_row, pitcher=True) if opp_pitcher_row is not None else PRIOR
+    pitcher_mult = _mult(opp_pitcher_row, 10, True) if opp_pitcher_row is not None else 1.0
+    profiles = {}
+    for p in nine:
+        rate = _match_rate(rates[p], pitcher_rates, matchup.get((pitcher_id, p)))
+        profiles[p] = _production(rate, _mult(bat[p], 1.5), pitcher_mult)
+    start = int(context.get("batting_order_start_index", 0)) % 9
+    order_scores = []
+    for turn in range(9):
+        urgency = 1.0 - 0.045 * turn
+        order_scores.append({p: urgency * (v + 0.25 * obp) for p, (v, obp, slg) in profiles.items()})
+
+    def pair_bonus(left, right, turn):
+        return 0.09 * (1 - turn * 0.04) * profiles[left][1] * profiles[right][2]
+
+    initial = sorted(nine, key=lambda p: order_scores[0][p], reverse=True)
+    ordered = _tabu(initial, nine, order_scores, rng, pair_bonus)
+    offense = [0] * 9
+    for turn, p in enumerate(ordered):
+        offense[(start + turn) % 9] = p
+
+    return {"defense": defense, "offense": offense}

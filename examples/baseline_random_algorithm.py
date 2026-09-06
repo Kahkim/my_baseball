@@ -5,21 +5,17 @@ baseline_random_algorithm.py
 고른다. 엔진 테스트/시연용 baseline이며, 학생 제출물의 최소 스펙을 보여주는 참고용이다.
 (진짜 학생 과제 템플릿은 examples/student_algorithm_template.py 참고)
 
-이닝 선발 규칙: 수비 호출에서 투수 포함 10명을 선발합니다. 공격 호출의 my_team은 그 10명만
-포함하므로, 투수 제외 9명의 타순만 정하세요. context["selected_lineup"]은 수비 자리 순서의
-선발 10명입니다. 공수교대 때 선수·투수 교체는 없으며, 다음 이닝 시작에 다시 선발합니다.
+이닝 선발 규칙: decide_lineup은 이닝마다 팀당 한 번 호출되며, {"defense": [10명], "offense": [9명]}
+을 반환합니다. defense는 [내야x4, 외야x3, 포수, DH, 투수] 순서(마지막이 투수)이고,
+offense는 defense의 앞 9명(투수 제외)을 타순대로 재배열한 것이어야 합니다.
+공수교대 때 선수·투수 교체는 없으며, 다음 이닝 시작에 다시 선발합니다.
 """
 import random
 
 
-def decide_lineup(is_offense, my_team, opponent_team, matchups, context, rng: random.Random):
+def decide_lineup(my_team, opponent_team, matchups, context, rng: random.Random):
     batters = my_team[my_team["role"] == "타자"]
     pitchers = my_team[my_team["role"] == "투수"]
-
-    if is_offense:
-        pool = batters["pCode"].tolist()
-        rng.shuffle(pool)
-        return pool[:9]
 
     ifs = batters[batters["position"] == "내야수"]["pCode"].tolist()
     ofs = batters[batters["position"] == "외야수"]["pCode"].tolist()
@@ -37,4 +33,11 @@ def decide_lineup(is_offense, my_team, opponent_team, matchups, context, rng: ra
     pitcher_pool = pitchers["pCode"].tolist()
     rng.shuffle(pitcher_pool)
     pitcher = pitcher_pool[0]
-    return chosen_if + chosen_of + chosen_c + [dh, pitcher]
+
+    defense = chosen_if + chosen_of + chosen_c + [dh, pitcher]
+
+    # 공격 타순: 선발한 야수 9명(투수 제외)을 무작위로 섞는다
+    offense = defense[:9]
+    rng.shuffle(offense)
+
+    return {"defense": defense, "offense": offense}

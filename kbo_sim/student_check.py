@@ -10,8 +10,9 @@ student_check.py
    - WARNING : 경기는 되지만 규칙 위반이거나 손해를 보게 되는 부분 (예: 전역 random 사용)
    - INFO    : 알아두면 좋은 주의사항
 
-2) 스모크 테스트 (smoke_test) — 실제로 decide_lineup()을 10명 선발(수비) → 선발 9명 타순(공격) 순서로 호출해서
-   ① 예외 없이 끝나는지 ② 제한시간 안에 들어오는지 ③ 반환한 명단이 규칙에 맞는지 확인한다.
+2) 스모크 테스트 (smoke_test) — 실제로 decide_lineup()을 한 번 호출해서
+   ① 예외 없이 끝나는지 ② 제한시간 안에 들어오는지 ③ 반환한 {"defense":[...10], "offense":[...9]}가
+   규칙에 맞는지 확인한다.
    실행은 student_api.run_student_decision()을 그대로 쓰므로 실제 경기와 동일한 격리 환경이다.
 """
 from __future__ import annotations
@@ -24,9 +25,9 @@ from typing import List, Optional
 from .data_pipeline import LeagueData
 from .models import GameRosterState, build_team
 from .student_api import (REQUIRED_FUNC_NAME, matchup_dataframe, run_student_decision,
-                           team_status_dataframe, validate_lineup)
+                           team_status_dataframe, validate_lineups)
 
-REQUIRED_ARGS = ["is_offense", "my_team", "opponent_team", "matchups", "context", "rng"]
+REQUIRED_ARGS = ["my_team", "opponent_team", "matchups", "context", "rng"]
 
 # 엔진이 학생 프로세스에 넣어주는 표준 라이브러리 외에, 있어도 되는 모듈
 ALLOWED_IMPORTS = {
@@ -263,45 +264,33 @@ def smoke_test(path: str, league: LeagueData, team_name: str, opponent_name: Opt
     opp_df = team_status_dataframe(league, opp, rs)
 
     from .student_api import default_defense_lineup
-    selected = None
     opponent_lineup = default_defense_lineup(opp)
     out = {"team": team_name, "opponent": opponent_name, "cases": [], "ok": True}
-    # 경기와 같은 순서: 10명 선발 후 그 선수들의 타순만 검사한다.
-    for is_offense in (False, True):
-        label = "공격(선발 9명 타순)" if is_offense else "선발(투수 포함 10명)"
-        if is_offense:
-            active = selected or default_defense_lineup(my)
-            input_team = my_df[my_df["pCode"].isin(active)].copy()
-            mu = matchup_dataframe(league, [opponent_lineup[9]], active[:9])
+
+    mu = matchup_dataframe(league, list(my.pitcher_pcodes) + [opponent_lineup[9]],
+                           list(opp.batter_pcodes) + list(my.batter_pcodes))
+    ctx = {"inning": 1, "half": "bottom", "my_score": 0, "opponent_score": 0, "outs": 0,
+           "batting_order_start_index": 0,
+           "my_prev_offense": None, "my_prev_defense": None,
+           "opp_prev_offense": None, "opp_prev_defense": None,
+           "opp_pitcher_pcode": None, "opp_catcher_pcode": None,
+           "time_budget_sec": timeout_sec}
+    res = run_student_decision(path, "smoke_lineup", my_team=my_df, opponent_team=opp_df,
+                               matchups=mu, context=ctx, rng=random.Random(12345),
+                               timeout_sec=timeout_sec)
+    case = {"label": "라인업(수비 10 + 공격 9)", "status": res.status,
+            "elapsed_sec": round(res.elapsed, 3), "error": res.error, "detail": None}
+    if res.status == "ok":
+        checked = validate_lineups(league, my, res.lineups)
+        if isinstance(checked, str):
+            case["status"], case["error"] = "invalid", checked
         else:
-            active = None
-            input_team = my_df
-            mu = matchup_dataframe(league, my.pitcher_pcodes, opp.batter_pcodes)
-        ctx = {"inning": 1, "half": "bottom" if is_offense else "top",
-               "my_score": 0, "opponent_score": 0, "outs": 0,
-               "batting_order_start_index": 0, "my_prev_lineup": None,
-               "opponent_prev_lineup": opponent_lineup if is_offense else None,
-               "opp_pitcher_pcode": opponent_lineup[9] if is_offense else None,
-               "opp_catcher_pcode": opponent_lineup[7] if is_offense else None,
-               "time_budget_sec": timeout_sec, "selected_lineup": active}
-        res = run_student_decision(path, f"smoke_{'off' if is_offense else 'def'}",
-                                    is_offense=is_offense, my_team=input_team, opponent_team=opp_df,
-                                    matchups=mu, context=ctx, rng=random.Random(12345),
-                                    timeout_sec=timeout_sec)
-        case = {"label": label, "status": res.status, "elapsed_sec": round(res.elapsed, 3),
-                "error": res.error, "detail": None}
-        if res.status == "ok":
-            problem = validate_lineup(league, my, res.lineup, is_offense, active)
-            if problem:
-                case["status"], case["error"] = "invalid", problem
-            else:
-                normalized = [int(p) for p in res.lineup]
-                if not is_offense:
-                    selected = normalized
-                case["detail"] = " / ".join(league.player(p)["shortName"] for p in normalized)
-        if case["status"] != "ok":
-            out["ok"] = False
-        out["cases"].append(case)
+            offense, defense = checked
+            case["detail"] = ("수비 " + " / ".join(league.player(p)["shortName"] for p in defense)
+                              + "\n타순 " + " / ".join(league.player(p)["shortName"] for p in offense))
+    if case["status"] != "ok":
+        out["ok"] = False
+    out["cases"].append(case)
     return out
 
 
