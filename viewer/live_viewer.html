@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>나의 구단주가 되어라 - 라이브</title>
+<title>너, 내 구단주가 돼라 - 라이브</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23ffcc33'/%3E%3Cpath d='M7 7q9 9 0 18M25 7q-9 9 0 18' stroke='%23c0392b' stroke-width='2' fill='none'/%3E%3C/svg%3E">
 <style>
   :root{
@@ -100,9 +100,14 @@
   table.lu td.pos{color:var(--sub);width:44px;font-size:10.5px;}
   table.lu td.nm{font-weight:600;}
   table.lu td.hp{width:60px;}
-  table.lu tr.now{background:#1d2942;}
-  table.lu tr.now td.nm{color:var(--accent);}
+  table.lu tr.now{background:#1d2942;box-shadow:inset 3px 0 0 0 var(--accent);animation:now-pop .4s ease;}
+  table.lu tr.now td.nm{color:var(--accent);font-weight:800;}
+  table.lu tr.now td.pos{color:var(--accent);font-weight:800;}
+  @keyframes now-pop{0%{background:transparent;box-shadow:inset 3px 0 0 0 transparent;}
+                      100%{background:#1d2942;box-shadow:inset 3px 0 0 0 var(--accent);}}
+  @media(prefers-reduced-motion:reduce){table.lu tr.now{animation:none;}}
   table.lu tr.mismatch td.pos{color:var(--bad);font-weight:700;}
+
   .hp-bar{height:6px;background:#232f44;border-radius:4px;overflow:hidden;}
   .hp-bar>div{height:100%;}
   .hp-num{font-size:9.5px;color:var(--sub);text-align:right;}
@@ -163,7 +168,7 @@
 </head>
 <body>
 <header>
-  <h1>⚾ 나의 구단주가 되어라</h1>
+  <h1>⚾ 너, 내 구단주가 돼라</h1>
   <div id="seriesChip" class="series-chip hidden"></div>
   <div class="controls" id="topControls"></div>
 </header>
@@ -486,8 +491,10 @@ function renderGround(){
   }
 
   const effect = g.querySelector('.ground-effects');
+  const errBadge = g.querySelector('.error-badge');
   g.innerHTML = fieldBase() + runners + marks + batter + ball + countPanel();
   if (effect) g.appendChild(effect);
+  if (errBadge) g.appendChild(errBadge);
 
   // 공 날아가는 애니메이션
   if (S.lastPlay && S.lastPlay.target && S.lastPlay.animate && S.speed !== 0){
@@ -704,7 +711,6 @@ function renderStatus(extra){
   } else {
     parts.push(`<span class="pill">다음: ${S.nextInning||g.next_inning}회 라인업 선발</span>`);
   }
-  parts.push(`<span>제한시간 <b>${g.timeout_sec}초</b></span>`);
   parts.push(`<span>콜드게임 <b>${g.mercy_min_inning}회 이후 ${g.mercy_margin}점차</b></span>`);
   parts.push(`<span>시드 <b>${g.seed}</b></span>`);
   if (extra) parts.push(`<span>${extra}</span>`);
@@ -840,6 +846,37 @@ function addLine(text, cls){
   d.className = 'ln '+(cls||''); d.textContent = text;
   feed.appendChild(d); feed.scrollTop = feed.scrollHeight;
   while (feed.childNodes.length > 1200) feed.removeChild(feed.firstChild);
+}
+
+/* 실책 배너 — 실책한 수비수 자리 바로 위에, 정해진 시간 동안만 떠 있다가 스스로 제거된다.
+   showBatterIntro와 같은 방식(JS 타이머로 직접 remove)을 써서, CSS 애니메이션이
+   prefers-reduced-motion 등으로 스킵되어도 항상 사라지도록 한다. */
+function showErrorBadge(fielderName, pos){
+  const g = el('ground'); if (!g || !pos) return;
+  g.querySelector('.error-badge')?.remove();
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const spd = (typeof S.speed === 'number' && S.speed > 0) ? S.speed : 340;
+  const duration = Math.max(900, Math.round(1500 * (spd / 340)));
+  const [x, y] = pos;
+  const ly = Math.max(28, y - 30);   // 필드 상단을 넘지 않게 자리 위쪽에 배치
+  const layer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  layer.setAttribute('class', 'error-badge');
+  layer.setAttribute('role', 'status');
+  layer.setAttribute('aria-label', `${fielderName || '수비'} 실책`);
+  const started = performance.now();
+  function draw(now){
+    if (!layer.isConnected) return;
+    const elapsed = now - started;
+    if (elapsed >= duration){ layer.remove(); return; }
+    const fade = reduced ? 1 : Math.min(1, (duration - elapsed) / 250, elapsed / 120);
+    layer.innerHTML = `<g transform="translate(${x} ${ly})" opacity="${fade}">
+      <rect x="-70" y="-16" width="140" height="32" rx="9" fill="#ff5c5c" stroke="#3a0d0d" stroke-width="1.5"/>
+      <text y="5" text-anchor="middle" font-family="inherit" font-size="13" font-weight="900"
+            fill="#200808">${esc(fielderName || '수비')} 실책!!</text></g>`;
+    requestAnimationFrame(draw);
+  }
+  g.appendChild(layer);
+  requestAnimationFrame(draw);
 }
 
 // Keep effects separate from field redraws so a score can finish at inning end.
@@ -1041,6 +1078,7 @@ function applyEventState(ev){
       const play = computePlay(ev);
       play.animate = play.animate !== false;
       S.lastPlay = play;
+      if (ev.is_error) showErrorBadge(ev.fielder_name, play.target);
       // 체력/투구수 갱신
       for(const t of Object.keys(S.lineups)){
         const info = S.lineups[t];

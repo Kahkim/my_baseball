@@ -201,7 +201,10 @@ class Handler(BaseHTTPRequestHandler):
         os.makedirs(UPLOAD_DIR, exist_ok=True)
         submission_dir = tempfile.mkdtemp(prefix="submission_", dir=UPLOAD_DIR)
         path = os.path.join(submission_dir, filename)
-        with open(path, "w", encoding="utf-8") as f:
+        # newline="": 브라우저가 보낸 content에는 원본 파일의 줄바꿈(\r\n 등)이 이미 문자로
+        # 들어있다. 텍스트 모드 기본 동작(newline=None)은 매 \n을 os.linesep으로 다시 바꾸므로,
+        # Windows에서 CRLF 원본을 올리면 \r\n이 \r\r\n으로 겹쳐 써져 파일이 깨진다.
+        with open(path, "w", encoding="utf-8", newline="") as f:
             f.write(content)
         report = full_check(path, APP.league, payload.get("team"), payload.get("opponent"),
                             APP.timeout_sec)
@@ -277,7 +280,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main(argv=None):
     global APP
-    ap = argparse.ArgumentParser(description="나의 구단주가 되어라 - 라이브 중계 서버")
+    ap = argparse.ArgumentParser(description="너, 내 구단주가 돼라 - 라이브 중계 서버")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--timeout", type=float, default=10.0)

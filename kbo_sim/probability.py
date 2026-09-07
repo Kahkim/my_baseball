@@ -28,7 +28,8 @@ MATCHUP_SHRINK_PA = 15.0     # 실전 맞대결 표본이 작으므로(대부분
 JITTER_SIGMA = 0.12          # 매 타석 컨디션 잡음(로그정규) 표준편차
 # 체력 배수 -> 사건확률 배수 변환 강도. 1.0이면 체력차가 확률에 그대로 곱해져 지친 투수가
 # 비현실적으로 얻어맞는다. 값이 클수록 "지칠수록 더 얻어맞는다"가 강해진다.
-FATIGUE_SKILL_ALPHA = 0.68
+# 체력저하가 실제 성적에 더 뚜렷이 드러나도록 계속 올려왔다(0.68 -> 0.78 -> 0.86).
+FATIGUE_SKILL_ALPHA = 0.86
 
 
 def _renorm(d: Dict[str, float]) -> Dict[str, float]:

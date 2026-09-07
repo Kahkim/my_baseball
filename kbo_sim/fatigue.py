@@ -29,10 +29,16 @@ import random
 # 목표치를 낮출수록(그리고 야수의 이닝당 소모 3~5회를 감안하면) 대략 3~4이닝 만에
 # 도달한다 - 매 3~4이닝마다 출전 선수 절반 이상을 갈아줘야 체력 저하를 피할 수 있도록
 # 의도한 값이다 (tools/calibrate.py로 득점 환경 재확인 완료).
-BATTER_BASE_TARGET_SWINGS = 14.0
+# 2~3이닝만 지나도 체감되도록 목표치를 낮춰왔다(14.0 -> 12.0 -> 10.5).
+BATTER_BASE_TARGET_SWINGS = 10.5
 BATTER_TARGET_JITTER = 0.20        # 타자 목표치 개인차 (투수의 ±20% 규정을 동일 적용; 스펙에 타자 수치가
                                     # 명시되어 있지 않아 투수와 동일한 비율을 합리적 기본값으로 채택 - 문서화된 가정)
 PITCHER_TARGET_JITTER = 0.20       # "투수는 실제 등판당 평균 투구수 기반 ±20%" (스펙 명시)
+# 실제 등판당 평균 투구수(NP/G)를 그대로 목표치로 쓰면 혹사가 잘 드러나지 않아,
+# 그보다 낮은 지점부터 지치기 시작하도록 목표치를 깎는다. NP/G 자체(실측값)는 data_pipeline에서
+# 그대로 유지하고, 여기서만 "게임 내 소모 속도"로 축소한다. 투수를 특히 더 빨리 지치게 하라는
+# 요청에 따라 타자보다 훨씬 크게 깎았다(0.85 -> 0.70, 실측 NP/G의 70%).
+PITCHER_TARGET_SCALE = 0.70
 
 FIELDING_SWING_EQUIV_MIN = 3.0     # "야수의 1이닝 수비는 스윙 3~5번 체력저하"
 FIELDING_SWING_EQUIV_MAX = 5.0
@@ -41,8 +47,9 @@ FIELDING_SWING_EQUIV_MAX = 5.0
 #   - 투수를 이닝마다 교체하며 정상 운영하면 9이닝 5점 안팎 (KBO 실제 팀당 경기 득점 수준)
 #   - 한 투수로 9이닝을 끝까지 끌면 크게 무너짐 (혹사에 대한 분명한 페널티)
 # 이 값과 probability.FATIGUE_SKILL_ALPHA가 함께 체력 -> 실제 성적 저하 폭을 결정한다.
-MAX_DROP = 0.52                     # 타자/야수 최대 저하폭
-PITCHER_MAX_DROP = 0.60            # 투수는 더 깊이 무너진다 - 투구수 누적에 대한 페널티를 크게
+# 지친 티가 더 뚜렷하게 나도록 계속 올려왔다(0.52->0.58->0.63, 0.60->0.67->0.73).
+MAX_DROP = 0.63                     # 타자/야수 최대 저하폭
+PITCHER_MAX_DROP = 0.73            # 투수는 더 깊이 무너진다 - 투구수 누적에 대한 페널티를 크게
 # 투수는 목표 투구수보다 앞선 지점부터 투구수에 비례해 완만히 체력이 깎이도록 계수를 낮춘다.
 # 값이 작을수록 곡선이 넓게 퍼져 "투구수에 비례한" 저하에 가까워진다.
 PITCHER_STEEPNESS_NUMERATOR = 6.5   # k = PITCHER_STEEPNESS_NUMERATOR / target (투수: 완만한 곡선)
@@ -58,8 +65,9 @@ def roll_batter_target(engine_rng: random.Random) -> float:
 
 
 def roll_pitcher_target(engine_rng: random.Random, base_target_pitches: float) -> float:
-    lo = base_target_pitches * (1 - PITCHER_TARGET_JITTER)
-    hi = base_target_pitches * (1 + PITCHER_TARGET_JITTER)
+    scaled_base = base_target_pitches * PITCHER_TARGET_SCALE
+    lo = scaled_base * (1 - PITCHER_TARGET_JITTER)
+    hi = scaled_base * (1 + PITCHER_TARGET_JITTER)
     return max(engine_rng.uniform(lo, hi), 10.0)
 
 

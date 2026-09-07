@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>나의 구단주가 되어라 - 문자중계 리플레이</title>
+<title>너, 내 구단주가 돼라 - 문자중계 리플레이</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23ffcc33'/%3E%3Cpath d='M7 7q9 9 0 18M25 7q-9 9 0 18' stroke='%23c0392b' stroke-width='2' fill='none'/%3E%3C/svg%3E">
 <style>
   :root{
@@ -62,7 +62,12 @@
   table.lu td.pos{color:var(--sub);width:44px;font-size:10.5px;}
   table.lu td.nm{font-weight:600;}
   table.lu td.hp{width:60px;}
-  table.lu tr.now{background:#1d2942;} table.lu tr.now td.nm{color:var(--accent);}
+  table.lu tr.now{background:#1d2942;box-shadow:inset 3px 0 0 0 var(--accent);animation:now-pop .4s ease;}
+  table.lu tr.now td.nm{color:var(--accent);font-weight:800;}
+  table.lu tr.now td.pos{color:var(--accent);font-weight:800;}
+  @keyframes now-pop{0%{background:transparent;box-shadow:inset 3px 0 0 0 transparent;}
+                      100%{background:#1d2942;box-shadow:inset 3px 0 0 0 var(--accent);}}
+  @media(prefers-reduced-motion:reduce){table.lu tr.now{animation:none;}}
   table.lu tr.mismatch td.pos{color:var(--bad);font-weight:700;}
   .hp-bar{height:6px;background:#232f44;border-radius:4px;overflow:hidden;}
   .hp-bar>div{height:100%;}
@@ -121,7 +126,7 @@
 </head>
 <body>
 <header>
-  <h1>⚾ 나의 구단주가 되어라 — 리플레이</h1>
+  <h1>⚾ 너, 내 구단주가 돼라 — 리플레이</h1>
   <label style="font-size:12px;color:#8b98af;">경기 로그(JSON):
     <input type="file" id="fileInput" accept="application/json" /></label>
   <div class="controls" id="controls" style="display:none;">
@@ -335,8 +340,10 @@ function renderGround(){
         stroke="#0c1712" stroke-width="2.6" paint-order="stroke">${esc(S.lastPlay.label||'')}</text>`;
   }
   const effect = g.querySelector('.ground-effects');
+  const errBadge = g.querySelector('.error-badge');
   g.innerHTML = fieldBase()+runners+marks+batter+ball+countPanel();
   if (effect) g.appendChild(effect);
+  if (errBadge) g.appendChild(errBadge);
 }
 function computePlay(ev){
   const def = (S.lineups[S.curFielding]||{}).defense;
@@ -478,6 +485,36 @@ function addLine(text,cls){
   const f=el('feed'), d=document.createElement('div');
   d.className='ln '+(cls||''); d.textContent=text;
   f.appendChild(d); f.scrollTop=f.scrollHeight;
+}
+
+/* 실책 배너 — 실책한 수비수 자리 바로 위에, 정해진 시간 동안만 떠 있다가 스스로 제거된다.
+   CSS 애니메이션이 prefers-reduced-motion 등으로 스킵되어도 항상 사라지도록 JS 타이머로 직접 remove한다. */
+function showErrorBadge(fielderName, pos){
+  const g = el('ground'); if (!g || !pos) return;
+  g.querySelector('.error-badge')?.remove();
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const spd = (typeof S.speed === 'number' && S.speed > 0) ? S.speed : 340;
+  const duration = Math.max(900, Math.round(1500 * (spd / 340)));
+  const [x, y] = pos;
+  const ly = Math.max(28, y - 30);
+  const layer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  layer.setAttribute('class', 'error-badge');
+  layer.setAttribute('role', 'status');
+  layer.setAttribute('aria-label', `${fielderName || '수비'} 실책`);
+  const started = performance.now();
+  function draw(now){
+    if (!layer.isConnected) return;
+    const elapsed = now - started;
+    if (elapsed >= duration){ layer.remove(); return; }
+    const fade = reduced ? 1 : Math.min(1, (duration - elapsed) / 250, elapsed / 120);
+    layer.innerHTML = `<g transform="translate(${x} ${ly})" opacity="${fade}">
+      <rect x="-70" y="-16" width="140" height="32" rx="9" fill="#ff5c5c" stroke="#3a0d0d" stroke-width="1.5"/>
+      <text y="5" text-anchor="middle" font-family="inherit" font-size="13" font-weight="900"
+            fill="#200808">${esc(fielderName || '수비')} 실책!!</text></g>`;
+    requestAnimationFrame(draw);
+  }
+  g.appendChild(layer);
+  requestAnimationFrame(draw);
 }
 // Keep effects separate from field redraws so a score can finish at inning end.
 let groundEffectUntil = 0;
@@ -669,6 +706,7 @@ function applyEventState(ev){
       addLine(`${ev.batter_name||''} : ${ev.description}${ev.runs?`  (+${ev.runs}점)`:''}`, cls);
       S.curOuts=ev.outs; S.curBalls=0; S.curStrikes=0; S.curBases=ev.bases; S.lastScore=ev.score;
       S.lastPlay = computePlay(ev);
+      if (ev.is_error) showErrorBadge(ev.fielder_name, S.lastPlay.target);
       for(const t of Object.keys(S.lineups)){
         const info=S.lineups[t];
         for(const arr of [info.batting_order, info.defense]){
