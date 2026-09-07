@@ -156,6 +156,7 @@ def run_repeated_series(league, a: Contestant, b: Contestant, args) -> int:
     with open(summary_path, "w", encoding="utf-8") as f:
         json.dump({
             "students": {"A": a.student_name, "B": b.student_name},
+            "data_files": {k: os.path.basename(v) for k, v in league.source_files.items()},
             "repeat": n, "seed": args.seed, "repeats": repeats,
             "series_record": {"A": [series_wins["A"], series_wins["draw"], series_wins["B"]],
                                "B": [series_wins["B"], series_wins["draw"], series_wins["A"]]},
@@ -231,6 +232,7 @@ def main(argv=None):
     os.makedirs(args.out, exist_ok=True)
     with open(summary_path, "w", encoding="utf-8") as f:
         json.dump({"score": mr.score, "winner": mr.winner, "students": mr.students,
+                   "data_files": {k: os.path.basename(v) for k, v in league.source_files.items()},
                    "games": [{"game_no": g.game_no, "home_id": g.home_id, "away_id": g.away_id, "home_student": g.home_student, "away_student": g.away_student,
                               "home_team": g.home_team, "away_team": g.away_team, "result": g.result,
                               "json_path": g.json_path} for g in mr.games]}, f, ensure_ascii=False, indent=2)

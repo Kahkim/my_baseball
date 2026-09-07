@@ -1,14 +1,18 @@
 """
 data_pipeline.py
 -----------------
-4개 원천 CSV(teams.csv, pitchers.csv, batters.csv, matchup.csv)를 kbo_sim/data_snapshot/
-에서 읽어 정제하고, 시뮬레이션 엔진이 바로 쓸 수 있는 형태(사건 확률 딕셔너리, 리그 평균 등)로
-가공한다. 파일명에 특정 연도를 박아두지 않은 이유는 시즌이 바뀔 때마다 코드를 고칠 필요 없이
-data_snapshot/ 안의 CSV 4개 내용만 새 시즌 것으로 갈아끼우면 되도록 하기 위해서다.
+4개 원천 CSV(teams, pitchers, batters, matchup)를 kbo_sim/data_snapshot/ 에서 읽어 정제하고,
+시뮬레이션 엔진이 바로 쓸 수 있는 형태(사건 확률 딕셔너리, 리그 평균 등)로 가공한다.
 
-데이터 출처: 2025 KBO 정규시즌 최종 기록 (KBO 공식 기록실). 자세한 수집 방법과 한계는
-프로젝트 문서 `claude/kbo_2025_data_summary.md` 참고. (데이터가 갱신되면 이 설명도 최신
-시즌에 맞게 갱신해 줄 것.)
+data_snapshot/ 안의 파일은 두 가지 형태를 지원한다:
+  1. 날짜가 붙은 파일 - 예: teams_20260907.csv, batters_20260907.csv (tools/collect_kbo_data.py가
+     생성). 같은 접두어로 여러 날짜가 있으면 파일명 끝의 YYYYMMDD를 비교해 **가장 최신 날짜**의
+     파일을 읽는다.
+  2. 날짜 없는 고정 파일명 - 예: teams.csv (과거 방식, 수동으로 갈아끼우던 스냅샷). 날짜 붙은
+     파일이 하나도 없을 때만 폴백으로 쓰인다.
+파일명에 특정 연도를 박아두지 않은 이유(고정 파일명 방식)나 여러 날짜를 허용한 이유(수집
+스크립트 방식) 모두 같다 - 시즌이 바뀌거나 데이터를 새로 받을 때마다 코드를 고칠 필요 없이
+data_snapshot/ 안의 CSV 내용만 갈아끼우면 되도록 하기 위해서다.
 
 이 모듈이 계산해서 "추가"하는 값들은 전부 원본 CSV의 실제 카운팅 스탯(안타, 볼넷, 삼진 등)을
 표본크기(PA/TBF)로 나눈 **비율**이거나, 표본이 작을 때 리그 평균 쪽으로 당기는 **베이지안
@@ -18,13 +22,38 @@ data_snapshot/ 안의 CSV 4개 내용만 새 시즌 것으로 갈아끼우면 �
 """
 from __future__ import annotations
 
+import glob
 import os
+import re
 from dataclasses import dataclass, field
 from typing import Dict, Optional
 
 import pandas as pd
 
 DATA_DIR_DEFAULT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data_snapshot")
+
+SNAPSHOT_BASENAMES = ["teams", "batters", "pitchers", "matchup"]
+_DATED_RE = re.compile(r"^(.+)_(\d{8})\.csv$")
+
+
+def resolve_snapshot_files(data_dir: str = DATA_DIR_DEFAULT) -> Dict[str, str]:
+    """data_dir 안에서 4개 원천 CSV 각각에 대해 실제로 읽을 파일 경로를 정한다.
+
+    `{name}_YYYYMMDD.csv` 형태가 하나 이상 있으면 그 중 날짜가 가장 최신인 파일을,
+    없으면 `{name}.csv`(고정 파일명) 폴백을 쓴다. 이름별로 독립적으로 판단하므로
+    예를 들어 batters만 새로 받고 matchup은 예전 고정 파일을 그대로 쓰는 것도 가능하다.
+    """
+    resolved: Dict[str, str] = {}
+    for base in SNAPSHOT_BASENAMES:
+        dated = glob.glob(os.path.join(data_dir, f"{base}_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9].csv"))
+        if dated:
+            def _date_key(path):
+                m = _DATED_RE.match(os.path.basename(path))
+                return m.group(2) if m else ""
+            resolved[base] = max(dated, key=_date_key)
+        else:
+            resolved[base] = os.path.join(data_dir, f"{base}.csv")
+    return resolved
 
 # PA 사건 카테고리 (합이 1이 되도록 정규화됨). OUT은 "인플레이 아웃"이며 이후 defense.py에서
 # 땅볼/뜬공/라인드라이브로 다시 세분화된다.
@@ -76,6 +105,7 @@ class LeagueData:
 
     team_code_by_name: Dict[str, str] = field(default_factory=dict)
     roster_by_team: Dict[str, dict] = field(default_factory=dict)  # team -> {"투수":[pCode..], "포수":[...], ...}
+    source_files: Dict[str, str] = field(default_factory=dict)  # teams/batters/pitchers/matchup -> 실제로 읽은 경로
 
     def batter(self, pcode) -> dict:
         return self.batter_by_pcode[int(pcode)]
@@ -144,10 +174,11 @@ def _rate_dict(counts: dict, denom: float, shrink_n: float, league_rate: dict) -
 
 
 def load_league_data(data_dir: str = DATA_DIR_DEFAULT) -> LeagueData:
-    teams = pd.read_csv(os.path.join(data_dir, "teams.csv"))
-    batters = pd.read_csv(os.path.join(data_dir, "batters.csv"))
-    pitchers = pd.read_csv(os.path.join(data_dir, "pitchers.csv"))
-    matchup = pd.read_csv(os.path.join(data_dir, "matchup.csv"))
+    files = resolve_snapshot_files(data_dir)
+    teams = pd.read_csv(files["teams"])
+    batters = pd.read_csv(files["batters"])
+    pitchers = pd.read_csv(files["pitchers"])
+    matchup = pd.read_csv(files["matchup"])
 
     # 숫자 컬럼 강제 변환 ("-" 등 문자값은 NaN -> 0)
     for col in ["AVG", "G", "PA", "AB", "R", "H", "2B", "3B", "HR", "TB", "RBI", "SAC", "SF",
@@ -170,7 +201,7 @@ def load_league_data(data_dir: str = DATA_DIR_DEFAULT) -> LeagueData:
     batters = batters[batters["AB"] > 0].reset_index(drop=True)
     pitchers = pitchers[pitchers["TBF"] > 0].reset_index(drop=True)
 
-    ld = LeagueData(teams=teams, batters=batters, pitchers=pitchers, matchup=matchup)
+    ld = LeagueData(teams=teams, batters=batters, pitchers=pitchers, matchup=matchup, source_files=files)
     ld.team_code_by_name = dict(zip(teams["teamName"], teams["teamCode"]))
 
     # ---- 리그 평균 계산 (표본가중 평균 = 전체 카운트 합 / 전체 PA(또는 TBF) 합) ----
