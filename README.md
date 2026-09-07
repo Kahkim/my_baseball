@@ -20,6 +20,7 @@
 | [프로그램 매뉴얼](docs/프로그램_매뉴얼.md) | **설치·실행 방법**(라이브 서버·CLI·`--repeat`), 결과 파일, 제출 함수의 입력·출력·개발 순서 |
 | [게임 규칙 매뉴얼](docs/게임_규칙_및_운영_매뉴얼.md) | **경기 규칙만**: 이닝 진행, 명단·타순 규칙, 체력, 종료 규칙, 3연전 승점 |
 | [학생용 템플릿](examples/student_algorithm_template.py) | 제출 파일을 만들 때 복사해서 시작하는 빈 틀 |
+| [데이터 수집 매뉴얼](docs/데이터_수집_매뉴얼.md) | KBO 공식 기록실에서 최신 시즌 데이터를 다시 받는 방법 |
 
 **처음이라면 순서대로**: [프로그램 매뉴얼 1절(설치)](docs/프로그램_매뉴얼.md#1-설치)로 설치하고
 2절 명령으로 예제 경기를 한 번 띄워 본 뒤, 규칙이 궁금해지면 [게임 규칙 매뉴얼](docs/게임_규칙_및_운영_매뉴얼.md)을,
@@ -32,15 +33,17 @@
 | [docs/](docs/) | 학생 배포용 게임 규칙·프로그램 매뉴얼 |
 | [examples/](examples/) | 제출 템플릿, 비교용 예제 2개(나쁜 전략 대조군 · Tabu Search) |
 | [kbo_sim/](kbo_sim/) | 경기 엔진, 학생 함수 실행·검사, 서버·CLI |
-| [kbo_sim/data_snapshot/](kbo_sim/data_snapshot/) | `teams.csv`, `batters.csv`, `pitchers.csv`, `matchup.csv` |
+| [kbo_sim/data_snapshot/](kbo_sim/data_snapshot/) | `teams`/`batters`/`pitchers`/`matchup` CSV (날짜 붙은 파일이 있으면 최신 것을 사용) |
 | [viewer/](viewer/) | 라이브 중계 화면과 리플레이 뷰어 |
 | [viewer/logos/](viewer/logos/README.md) | 구단 로고 설정 안내 |
 | [tools/](tools/) | 회귀 검사, 전체 검사, 밸런스·전략 비교 도구 |
 | [uploads/](uploads/) | 라이브에서 올린 제출 파일. 업로드마다 별도 하위 폴더에 저장 |
 | [output/](output/) | 기본 경기 결과 저장 폴더 |
 
-실행할 때 동봉된 CSV를 읽으며, KBO 사이트에서 자동으로 최신 데이터를 내려받지는 않습니다.
-데이터 출처와 확률 계산 범위에 대한 자세한 설명은
+실행할 때는 `data_snapshot/`에 동봉된 CSV를 읽습니다. `python tools/collect_kbo_data.py`를
+실행하면 KBO 사이트에서 오늘 날짜 기준 최신 데이터를 새로 받을 수 있습니다 — 자세한 사용법은
+[데이터 수집 매뉴얼](docs/데이터_수집_매뉴얼.md)을 참고하세요. 데이터 출처와 확률 계산
+범위에 대한 설명은
 [게임 규칙 매뉴얼의 "데이터와 시뮬레이션의 범위"](docs/게임_규칙_및_운영_매뉴얼.md#7-데이터와-시뮬레이션의-범위)를 참고하세요.
 
 ## 엔진 자체 점검 (학생들은 몰라도 됨)
