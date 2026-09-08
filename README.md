@@ -2,6 +2,8 @@
 
 ![KBO](https://dimg.donga.com/wps/SPORTS/IMAGE/2017/09/05/86184062.4.jpg)
 
+![라이브 뷰어 화면](docs/images/live_viewer_screenshot.png)
+
 **매 이닝 출전선수를 고르는 알고리즘으로 겨루는 KBO 야구 시뮬레이션 과제입니다.**
 학생은 Python 함수 `decide_lineup()`을 구현하고, Tabu Search·GA·PSO 등 메타휴리스틱으로
 선수 선택과 타순을 탐색합니다. 승패는 "누가 야구를 더 잘 아는가"가 아니라 "제한된 시간·정보
