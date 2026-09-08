@@ -1218,6 +1218,12 @@ async function stepAction(){
   }
 }
 
+async function resetGame(){
+  if (!confirm('진행 중인 경기를 버리고 처음(팀 선택 화면)부터 다시 시작할까요?')) return;
+  try{ await api('/api/reset', {}); } catch(err){ /* 세션이 이미 없어도 무시하고 새로고침 */ }
+  location.reload();
+}
+
 async function nextGame(){
   if (S.busy) return;
   S.busy = true; renderStatus();
@@ -1250,6 +1256,8 @@ async function nextGame(){
     if (S.preset.seed != null) el('seedInput').value = S.preset.seed;
     renderSetupCard('a'); renderSetupCard('b'); refreshStartBtn();
     el('btnStart').onclick = startSeries;
+    el('topControls').innerHTML = '<button id="btnReset" title="진행 중인 경기를 버리고 팀 선택부터 다시 시작">🔄 게임 리셋</button>';
+    el('btnReset').onclick = resetGame;
     renderGround();
     // CLI로 미리 지정한 파일도 화면에서 똑같이 검증해서 보여준다
     for (const key of ['a','b']) if (S.entry[key].algo_path) recheck(key);

@@ -29,6 +29,7 @@ POST /api/next_lineup  1단계: 이닝 시작 시 양 팀 알고리즘 4회 호�
 POST /api/play_half    2단계: 확정된 명단으로 다음 하프이닝 공격 진행
 POST /api/next_half    (호환) 1+2단계를 한 번에
 POST /api/next_game    3연전 중 다음 경기 시작
+POST /api/reset        진행 중인 세션을 버리고 처음(팀 선택 화면) 상태로 되돌림
 
 보안 메모: 이 서버는 "학생이 제출한 파이썬 코드를 실행"하는 것이 목적이므로, 기본적으로
 127.0.0.1(로컬)에만 바인딩한다. 외부에 노출하지 말 것.
@@ -185,6 +186,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._api_step("both")
             if path == "/api/next_game":
                 return self._api_next_game()
+            if path == "/api/reset":
+                return self._api_reset()
         except Exception as e:  # noqa: BLE001
             import traceback
             traceback.print_exc()
@@ -276,6 +279,11 @@ class Handler(BaseHTTPRequestHandler):
             state = APP.session.full_state()
         state.update({"ok": True, "started": True, "game": meta})
         self._json(state)
+
+    def _api_reset(self):
+        with APP.lock:
+            APP.session = None
+        self._json({"ok": True})
 
 
 def main(argv=None):
