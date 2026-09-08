@@ -38,7 +38,9 @@
   .scorebox td.teamcell{text-align:left;padding-left:12px;}
   .teamcell .inner{display:flex;align-items:center;gap:9px;font-weight:700;}
   .teamcell .stu{font-size:11px;color:var(--sub);font-weight:400;}
-  .scorebox td.tot{font-weight:800;color:var(--accent);font-size:15px;}
+  .scorebox td.tot{padding:5px 6px;}
+  .scorebox td.tot .scorenum{display:inline-block;min-width:22px;padding:2px 10px;border-radius:7px;
+      background:var(--accent);color:#20242c;font-weight:800;font-size:15px;}
   .scorebox tr.batting td.teamcell .inner::after{content:"공격중";font-size:10px;background:var(--accent);
       color:#20242c;border-radius:4px;padding:1px 5px;font-weight:800;margin-left:4px;}
   .statusbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 14px;background:#0f1622;
@@ -122,6 +124,8 @@
   .scorebox td.score-flash{animation:score-flash 1.8s ease-out;}
   @keyframes score-flash{0%,35%{background:#ffdf65;color:#15202b;}100%{background:transparent;}}
   @media(prefers-reduced-motion:reduce){.scorebox tr.scoring td.tot,.scorebox td.score-flash{animation:none;}}
+  .scorebox td.curcol{background:rgba(255,204,51,.16);color:var(--accent);font-weight:800;}
+  .scorebox thead th.curcol{background:rgba(255,204,51,.22);color:var(--accent);}
 </style>
 </head>
 <body>
@@ -290,7 +294,8 @@ function countPanel(){
              stroke="${on?color:'#4a5568'}" stroke-width="1.4"/>`; }
     return s;
   };
-  return `<g class="count-panel" font-family="inherit">
+  // translate: 패널이 그라운드 좌하단 모서리에 붙어 보이지 않도록 좌/하 여백을 16px로 맞춘다
+  return `<g class="count-panel" font-family="inherit" transform="translate(10,-16)">
     <rect x="6" y="450" width="150" height="94" rx="9" fill="#0b1220" fill-opacity=".82"
       stroke="#31405c" stroke-width="1.5"/>
     ${nameRow(467,'투',fTeam,pName)}
@@ -392,15 +397,19 @@ function renderScore(){
   const d=S.data; if(!d) return;
   const N=maxInning();
   let head='<thead><tr><th style="text-align:left;padding-left:12px;">팀</th>';
-  for(let i=1;i<=N;i++) head+=`<th>${i}</th>`;
+  for(let i=1;i<=N;i++) head+=`<th class="${i===S.curInning?'curcol':''}">${i}</th>`;
   head+='<th>R</th><th>H</th><th>E</th></tr></thead>';
   const meta=d.algo_meta||{};
   const row = t => {
     let cells='';
-    for(let i=1;i<=N;i++){ const v=(S.inningRuns[t.name]||{})[i]; cells+=`<td class="${S.scoringTeam===t.name && i===S.curInning?'score-flash':''}">${v==null?'-':v}</td>`; }
+    for(let i=1;i<=N;i++){
+      const v=(S.inningRuns[t.name]||{})[i];
+      const cls=[i===S.curInning?'curcol':'', S.scoringTeam===t.name && i===S.curInning?'score-flash':''].filter(Boolean).join(' ');
+      cells+=`<td class="${cls}">${v==null?'-':v}</td>`;
+    }
     return `<tr class="${S.curBatting===t.name?'batting':''} ${S.scoringTeam===t.name?'scoring':''}"><td class="teamcell"><div class="inner">
       ${emblem(t,30)}<span>${esc(t.name)}<div class="stu">${esc((meta[t.name]&&meta[t.name].student_name)||'')}</div>
-      </span></div></td>${cells}<td class="tot">${S.lastScore[t.name]||0}</td>
+      </span></div></td>${cells}<td class="tot"><span class="scorenum">${S.lastScore[t.name]||0}</span></td>
       <td>${S.lastHits[t.name]||0}</td><td>${S.lastErrors[t.name]||0}</td></tr>`;
   };
   el('scoreTable').innerHTML = head+'<tbody>'+row(d.away)+row(d.home)+'</tbody>';

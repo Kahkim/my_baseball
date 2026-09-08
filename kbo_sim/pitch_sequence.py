@@ -9,6 +9,10 @@ pitch_sequence.py
 영향을 주지는 않는다(이미 결과는 확정됨) — 오직 문자중계 연출과, 스윙수/투구수 집계(체력 소모)를
 위한 것이다.
 
+타자 체력배수(batter_fatigue_mult)를 받아 "지친 타자일수록 루킹보다 헛스윙이 많아지도록"
+스트라이크의 종류를 고른다(FATIGUE_WHIFF_TILT). 결과(삼진/볼넷 등)는 이미 확정된 뒤이므로
+승패에는 영향이 없지만, 헛스윙은 swung=True라 스윙수 집계에는 반영된다.
+
 반환하는 각 pitch: {"seq": n, "balls": int, "strikes": int, "kind": str, "swung": bool, "text": str}
 kind ∈ {"ball","called_strike","swinging_strike","foul","hbp","inplay"}
 """
@@ -25,11 +29,23 @@ PITCH_LOCATION_FLAVOR = [
 ]
 
 
+# 타자가 지치면 같은 스트라이크라도 루킹보다 헛스윙이 되기 쉽다. 완전 탈진(체력배수 0.37)일 때
+# 헛스윙 확률에 0.63 * 0.20 ≈ +0.13이 더해진다 (예: 삼진 마무리 0.62 -> 0.75).
+FATIGUE_WHIFF_TILT = 0.20
+
+
 def _flavor(rng: random.Random) -> str:
     return rng.choice(PITCH_LOCATION_FLAVOR)
 
 
-def generate_pitch_sequence(event: str, engine_rng: random.Random) -> List[Dict]:
+def _whiff_p(base: float, batter_fatigue_mult: float) -> float:
+    """헛스윙 확률. 체력배수가 1이면 기존 값 그대로, 낮을수록 헛스윙이 늘어난다."""
+    fatigue_penalty = max(0.0, 1.0 - batter_fatigue_mult)  # 0(쌩쌩) ~ MAX_DROP(탈진)
+    return min(base + fatigue_penalty * FATIGUE_WHIFF_TILT, 0.95)
+
+
+def generate_pitch_sequence(event: str, engine_rng: random.Random,
+                             batter_fatigue_mult: float = 1.0) -> List[Dict]:
     pitches: List[Dict] = []
     balls, strikes = 0, 0
 
@@ -63,7 +79,7 @@ def generate_pitch_sequence(event: str, engine_rng: random.Random) -> List[Dict]
                 add("foul", True, "커트해내는 파울")
             else:
                 if strikes < 2:
-                    swung = engine_rng.random() < 0.45
+                    swung = engine_rng.random() < _whiff_p(0.45, batter_fatigue_mult)
                     strikes += 1
                     add("swinging_strike" if swung else "called_strike", swung,
                         "헛스윙 스트라이크" if swung else f"{_flavor(engine_rng)} 스트라이크")
@@ -73,7 +89,7 @@ def generate_pitch_sequence(event: str, engine_rng: random.Random) -> List[Dict]
 
     if event == "SO":
         # 볼넷 이외의 결과에서는 4번째 볼을 만들지 않는다. 카운트를 되돌리면 안 된다.
-        swinging_final = engine_rng.random() < 0.62
+        swinging_final = engine_rng.random() < _whiff_p(0.62, batter_fatigue_mult)
         while strikes < 3:
             if strikes < 2:
                 roll = engine_rng.random()
@@ -81,7 +97,7 @@ def generate_pitch_sequence(event: str, engine_rng: random.Random) -> List[Dict]
                     balls += 1
                     add("ball", False, f"{_flavor(engine_rng)} 볼")
                 else:
-                    swung = engine_rng.random() < 0.5
+                    swung = engine_rng.random() < _whiff_p(0.5, batter_fatigue_mult)
                     strikes += 1
                     add("swinging_strike" if swung else "called_strike", swung,
                         "헛스윙 스트라이크" if swung else f"{_flavor(engine_rng)} 스트라이크")

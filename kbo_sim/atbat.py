@@ -249,7 +249,7 @@ def resolve_plate_appearance(league: LeagueData, offense_batter_pcode: int, defe
     weights = list(probs.values())
     event = engine_rng.choices(events, weights=weights)[0]
 
-    pitches = generate_pitch_sequence(event, engine_rng)
+    pitches = generate_pitch_sequence(event, engine_rng, batter_rt.fatigue_mult())
     batter_rt.swing_count += count_swings(pitches)
     pitcher_rt.pitch_count += len(pitches)
 

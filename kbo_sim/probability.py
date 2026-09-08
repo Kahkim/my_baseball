@@ -30,6 +30,16 @@ JITTER_SIGMA = 0.12          # 매 타석 컨디션 잡음(로그정규) 표준�
 # 비현실적으로 얻어맞는다. 값이 클수록 "지칠수록 더 얻어맞는다"가 강해진다.
 # 체력저하가 실제 성적에 더 뚜렷이 드러나도록 계속 올려왔다(0.68 -> 0.78 -> 0.86).
 FATIGUE_SKILL_ALPHA = 0.86
+# 체력차 + 컨디션 잡음을 합친 최종 확률배수의 상한(하한은 그 역수). 이게 없으면 완전히 지친
+# 투수(체력배수 0.27)가 쌩쌩한 타자를 만났을 때 배수가 3배를 넘어 출루확률이 0.8을 넘고, 이닝이
+# 좀처럼 끝나지 않아 한 이닝 20점 같은 결과가 나온다. 실측(한 투수로 9이닝 완투시키는 최악의
+# 운영 기준, 1080이닝):
+#     상한없음 → 9이닝 31.9점, 10점 이상 이닝 11.9%
+#     1.45     → 9이닝 11.0점, 10점 이상 이닝 0.2%
+# 정상 운영(이닝/3이닝마다 교체)은 상한값과 무관하게 9이닝 5.2점 수준으로 영향을 받지 않는다 —
+# 쌩쌩한 투수는 애초에 상한 근처까지 가지 않기 때문. 즉 이 상한은 혹사 페널티(정상의 2배 실점)는
+# 남기고 "한 이닝에 10~20점" 극단값만 잘라낸다.
+FATIGUE_FACTOR_CAP = 1.45
 
 
 def _renorm(d: Dict[str, float]) -> Dict[str, float]:
@@ -83,7 +93,8 @@ def apply_fatigue_and_jitter(rate: Dict[str, float], batter_fatigue_mult: float,
     skill_factor = (batter_fatigue_mult / pitcher_fatigue_mult) ** FATIGUE_SKILL_ALPHA
     jitter = math.exp(engine_rng.gauss(0.0, JITTER_SIGMA))
     factor_favorable = skill_factor * jitter
-    factor_unfavorable = 1.0 / max(factor_favorable, 1e-3)
+    factor_favorable = min(max(factor_favorable, 1.0 / FATIGUE_FACTOR_CAP), FATIGUE_FACTOR_CAP)
+    factor_unfavorable = 1.0 / factor_favorable
 
     out = {}
     for ev, p in rate.items():

@@ -71,7 +71,9 @@
   .scorebox td.teamcell{text-align:left;padding-left:12px;}
   .teamcell .inner{display:flex;align-items:center;gap:9px;font-weight:700;}
   .teamcell .stu{font-size:11px;color:var(--sub);font-weight:400;}
-  .scorebox td.tot{font-weight:800;color:var(--accent);font-size:15px;}
+  .scorebox td.tot{padding:5px 6px;}
+  .scorebox td.tot .scorenum{display:inline-block;min-width:22px;padding:2px 10px;border-radius:7px;
+      background:var(--accent);color:#20242c;font-weight:800;font-size:15px;}
   .scorebox tr.batting td.teamcell .inner::after{content:"공격중";font-size:10px;background:var(--accent);
       color:#20242c;border-radius:4px;padding:1px 5px;font-weight:800;margin-left:4px;}
   .statusbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 14px;background:#0f1622;
@@ -164,6 +166,35 @@
   .scorebox td.score-flash{animation:score-flash 1.8s ease-out;}
   @keyframes score-flash{0%,35%{background:#ffdf65;color:#15202b;}100%{background:transparent;}}
   @media(prefers-reduced-motion:reduce){.scorebox tr.scoring td.tot,.scorebox td.score-flash{animation:none;}}
+  .scorebox td.curcol{background:rgba(255,204,51,.16);color:var(--accent);font-weight:800;}
+  .scorebox thead th.curcol{background:rgba(255,204,51,.22);color:var(--accent);}
+
+  /* ---------- 3차전 무작위 배정 추첨 화면 ---------- */
+  .reveal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
+          background:rgba(6,10,18,.85);padding:20px;}
+  .reveal-card{background:linear-gradient(180deg,#1b2536,#131b29);border:1px solid var(--line2);
+      border-radius:18px;padding:26px 32px 22px;text-align:center;max-width:780px;width:100%;
+      box-shadow:0 24px 70px rgba(0,0,0,.6);animation:reveal-in .25s ease-out;}
+  @keyframes reveal-in{from{transform:scale(.94);opacity:0;}to{transform:scale(1);opacity:1;}}
+  .reveal-label{font-size:12px;letter-spacing:3px;color:var(--accent);font-weight:800;}
+  .reveal-card h2{font-size:26px;margin:6px 0 20px;}
+  .reveal-slots{display:flex;align-items:center;justify-content:center;gap:20px;flex-wrap:wrap;}
+  .reveal-slot{flex:1;min-width:210px;background:#101827;border:2px solid var(--line);border-radius:14px;
+               padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:8px;}
+  .reveal-slot.shuffling{animation:reveal-flick .16s steps(2,end) infinite;}
+  @keyframes reveal-flick{0%{opacity:.45;}100%{opacity:1;}}
+  .reveal-slot.final{border-color:var(--accent);animation:reveal-pop .38s ease-out;}
+  @keyframes reveal-pop{0%{transform:scale(.9);}60%{transform:scale(1.05);}100%{transform:scale(1);}}
+  .reveal-badge{font-size:11px;font-weight:800;border-radius:5px;padding:2px 9px;}
+  .reveal-badge.home{background:var(--accent);color:#20242c;}
+  .reveal-badge.away{background:var(--panel2);color:var(--sub);border:1px solid var(--line2);}
+  .reveal-team{font-size:22px;font-weight:800;}
+  .reveal-stu{font-size:13px;color:var(--sub);}
+  .reveal-vs{font-size:20px;font-weight:800;color:var(--sub);}
+  .reveal-note{font-size:12px;color:var(--sub);margin:18px 0 14px;line-height:1.6;}
+  @media(prefers-reduced-motion:reduce){
+    .reveal-card,.reveal-slot.shuffling,.reveal-slot.final{animation:none;}
+  }
 </style>
 </head>
 <body>
@@ -247,6 +278,22 @@
       구단 엠블럼은 구단 상징색을 참고해 만든 오리지널 도안이며 실제 구단 로고가 아닙니다
       (viewer/logos/&lt;팀코드&gt;.png 파일을 넣으면 그 이미지로 대체됩니다).
     </div>
+  </div>
+</div>
+
+<!-- ================= 3차전 무작위 배정 추첨 ================= -->
+<div id="revealOverlay" class="reveal hidden">
+  <div class="reveal-card">
+    <div class="reveal-label">3차전 · 무작위 배정</div>
+    <h2 id="revealTitle">배정 추첨 중…</h2>
+    <div class="reveal-slots">
+      <div class="reveal-slot" id="revealAway"></div>
+      <div class="reveal-vs">VS</div>
+      <div class="reveal-slot" id="revealHome"></div>
+    </div>
+    <div class="reveal-note">3차전은 <b>어느 학생이 어느 팀을 맡을지</b>와 <b>홈/원정</b>을 모두
+      무작위로 다시 배정합니다. (경기 시드가 같으면 항상 같은 결과가 나옵니다)</div>
+    <button class="primary" id="btnRevealConfirm" disabled>추첨 중…</button>
   </div>
 </div>
 
@@ -420,7 +467,8 @@ function countPanel(){
              stroke="${on?color:'#4a5568'}" stroke-width="1.4"/>`; }
     return s;
   };
-  return `<g class="count-panel" font-family="inherit">
+  // translate: 패널이 그라운드 좌하단 모서리에 붙어 보이지 않도록 좌/하 여백을 16px로 맞춘다
+  return `<g class="count-panel" font-family="inherit" transform="translate(10,-16)">
     <rect x="6" y="450" width="150" height="94" rx="9" fill="#0b1220" fill-opacity=".82"
       stroke="#31405c" stroke-width="1.5"/>
     ${nameRow(467, '투', fTeam, pName)}
@@ -682,14 +730,18 @@ function renderScoreboard(){
   const g = S.game; if(!g) return;
   const N = g.max_innings;
   let head = '<thead><tr><th style="text-align:left;padding-left:12px;">팀</th>';
-  for(let i=1;i<=N;i++) head += `<th>${i}</th>`;
+  for(let i=1;i<=N;i++) head += `<th class="${i===S.curInning?'curcol':''}">${i}</th>`;
   head += '<th>R</th><th>H</th><th>E</th></tr></thead>';
   const row = (t) => {
     let cells='';
-    for(let i=1;i<=N;i++){ const v=(S.inningRuns[t.name]||{})[i]; cells += `<td class="${S.scoringTeam===t.name && i===S.curInning?'score-flash':''}">${v==null?'-':v}</td>`; }
+    for(let i=1;i<=N;i++){
+      const v=(S.inningRuns[t.name]||{})[i];
+      const cls=[i===S.curInning?'curcol':'', S.scoringTeam===t.name && i===S.curInning?'score-flash':''].filter(Boolean).join(' ');
+      cells += `<td class="${cls}">${v==null?'-':v}</td>`;
+    }
     return `<tr class="${S.curBatting===t.name?'batting':''} ${S.scoringTeam===t.name?'scoring':''}"><td class="teamcell"><div class="inner">
       ${emblem(t,30)}<span>${esc(t.name)}<div class="stu">${esc(t.student||'')}</div></span></div></td>
-      ${cells}<td class="tot">${S.lastScore[t.name]||0}</td><td>${S.lastHits[t.name]||0}</td>
+      ${cells}<td class="tot"><span class="scorenum">${S.lastScore[t.name]||0}</span></td><td>${S.lastHits[t.name]||0}</td>
       <td>${S.lastErrors[t.name]||0}</td></tr>`;
   };
   el('scoreTable').innerHTML = head + '<tbody>' + row(g.away) + row(g.home) + '</tbody>';
@@ -737,6 +789,7 @@ function renderGameControls(){
   const box = el('gameControls'); if(!box) return;
   const canNext = !S.busy && !S.animating && !S.finishedGame;
   const canNextGame = S.finishedGame && S.series && S.series.has_next_game;
+  const nextGameNo = S.series ? S.series.game_index + 2 : 0;
   // 2단계 진행: (이닝 시작에) 라인업 선발 -> 각 하프이닝 공격 진행
   const label = S.phase === 'play'
       ? `▶ 다음 공격 진행 (${upcomingLabel()})`
@@ -747,12 +800,77 @@ function renderGameControls(){
     <select id="speedSel">
       ${SPEEDS.map(s=>`<option value="${s.v}" ${S.speed==s.v?'selected':''}>${s.t}</option>`).join('')}
     </select>
-    ${canNextGame?`<button class="primary" id="btnNextGame">다음 경기 시작 ▶</button>`:''}`;
+    ${canNextGame?`<button class="primary" id="btnNextGame">${nextGameNo===3?'3차전 배정 추첨 ▶':'다음 경기 시작 ▶'}</button>`:''}`;
   el('btnStep').onclick = stepAction;
   el('btnAuto').onclick = () => { S.autoPlay=!S.autoPlay; renderStatus();
       if(S.autoPlay && !S.busy && !S.animating && !S.finishedGame) stepAction(); };
   el('speedSel').onchange = ev => { S.speed = parseInt(ev.target.value,10); };
-  if (canNextGame) el('btnNextGame').onclick = nextGame;
+  if (canNextGame) el('btnNextGame').onclick = (nextGameNo === 3 ? openGame3Reveal : nextGame);
+}
+
+/* ---- 3차전 무작위 배정 추첨 화면 ----------------------------------------
+   배정 자체는 3연전 시작 시 서버가 이미 정해둔 값(series.schedule)이다. 여기서는 그 결과를
+   슬롯머신처럼 돌려 보여준 뒤, [확인]을 눌러야 실제로 3차전을 시작한다. */
+function revealSlotHTML(entry, isHome){
+  const team = S.teamByName[entry.team] || {name: entry.team, code: entry.team};
+  const dup = S.series && S.series.students && S.series.students[0] === S.series.students[1];
+  const who = entry.student + (dup && entry.id ? ` (${entry.id})` : '');
+  return `<div class="reveal-badge ${isHome?'home':'away'}">${isHome?'홈':'원정'}</div>
+    ${emblem(team, 84)}
+    <div class="reveal-team">${esc(team.name)}</div>
+    <div class="reveal-stu">${esc(who)}</div>`;
+}
+
+function paintRevealSlots(home, away, shuffling){
+  const cls = shuffling ? 'reveal-slot shuffling' : 'reveal-slot final';
+  const h = el('revealHome'), a = el('revealAway');
+  h.className = cls; a.className = cls;
+  h.innerHTML = revealSlotHTML(home, true);
+  a.innerHTML = revealSlotHTML(away, false);
+}
+
+function openGame3Reveal(){
+  const g3 = ((S.series && S.series.schedule) || []).find(x => x.game_no === 3);
+  if (!g3) return nextGame();   // 일정 정보를 못 받았으면 추첨 화면 없이 그냥 시작
+  const finalHome = {student: g3.home_student, id: g3.home_id, team: g3.home_team};
+  const finalAway = {student: g3.away_student, id: g3.away_id, team: g3.away_team};
+
+  // 가능한 배정 4가지 (학생↔팀 2가지 × 홈/원정 2가지) — 추첨 연출에 돌려 쓸 후보
+  const teams = [g3.home_team, g3.away_team];
+  const studs = [{student:g3.home_student, id:g3.home_id}, {student:g3.away_student, id:g3.away_id}];
+  const combos = [];
+  for (const swapTeam of [0,1]) for (const swapHome of [0,1]){
+    const pair = [{...studs[0], team: teams[swapTeam]}, {...studs[1], team: teams[1-swapTeam]}];
+    combos.push(swapHome ? [pair[1], pair[0]] : pair);
+  }
+
+  const btn = el('btnRevealConfirm');
+  btn.disabled = true; btn.textContent = '추첨 중…';
+  el('revealTitle').textContent = '배정 추첨 중…';
+  el('revealOverlay').classList.remove('hidden');
+
+  let tick = 0;
+  const TICKS = 20;
+  const spin = () => {
+    if (tick < TICKS){
+      const c = combos[Math.floor(Math.random() * combos.length)];
+      paintRevealSlots(c[0], c[1], true);
+      tick++;
+      setTimeout(spin, 60 + tick * 9);   // 점점 느려지며 멎는 슬롯머신 느낌
+    } else {
+      paintRevealSlots(finalHome, finalAway, false);
+      el('revealTitle').textContent = '3차전 배정 결과';
+      btn.disabled = false;
+      btn.textContent = '확인 → 3차전 시작 ▶';
+      btn.focus();
+    }
+  };
+  spin();
+}
+
+function closeRevealAndStart(){
+  el('revealOverlay').classList.add('hidden');
+  nextGame();
 }
 
 function renderSeriesChip(){
@@ -1258,6 +1376,7 @@ async function nextGame(){
     el('btnStart').onclick = startSeries;
     el('topControls').innerHTML = '<button id="btnReset" title="진행 중인 경기를 버리고 팀 선택부터 다시 시작">🔄 게임 리셋</button>';
     el('btnReset').onclick = resetGame;
+    el('btnRevealConfirm').onclick = closeRevealAndStart;
     renderGround();
     // CLI로 미리 지정한 파일도 화면에서 똑같이 검증해서 보여준다
     for (const key of ['a','b']) if (S.entry[key].algo_path) recheck(key);
