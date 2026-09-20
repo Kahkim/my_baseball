@@ -43,7 +43,11 @@ DH 자리는 수비 소모가 없어서(엔진은 defense[0..7]에만 수비 체
 - 타순 가치는 고정 가중치 배열 대신 **그 타순이 실제로 타석에 설 확률**로 계산.
   (아웃 3개 전에 t번째 타자까지 도달할 확률 — 이닝 시작 인덱스까지 반영)
   이 확률이 곧 타석 스윙 소모량이라, 타순과 체력이 자연스럽게 연동된다.
-- 상대 투수의 체력, 맞대결(matchups) 표본을 평가에 반영.
+- 상대 투수를 1명으로 찍지 않고 **등판확률 분포**로 다뤄 맞대결·체력을 기댓값으로 반영
+  (아래 별도 절).
+- 체력 -> 확률배수 변환에 엔진의 상한 1.45(probability.FATIGUE_FACTOR_CAP)를 적용.
+  이게 빠져 있으면 탈진한 투수(배수 0.27)를 상대할 때 배수를 3.08로 계산해 2배 넘게
+  과대평가하고, "지친 투수를 때린다"는 가치가 부풀어 체력 기회비용과의 저울이 망가진다.
 - 투수는 무작위 이웃탐색 대신 **전수 비교로 정확히 최적**을 고른다(후보 수십 명뿐).
   누적 투구수 대비 목표치를 보고 "이번 이닝을 끝까지 버틸 수 있는가"를 적분한다.
 - Tabu 기법 자체도 보강: 역이동 금지, 열망 기준, 정체 시 다변화(재시작).
@@ -53,22 +57,87 @@ DH 자리는 수비 소모가 없어서(엔진은 defense[0..7]에만 수비 체
 이전 버전과 홈/원정을 서로 바꿔가며 붙인 80경기(튜닝에 쓰지 않은 시드)에서
 40승 11무 29패(승점비율 0.569), 득점 270 대 217이었다.
 
-수비 출전 시점의 평균 체력을 이닝별로 재보면 성격이 분명히 드러난다.
+수비 8자리 선수의 평균 체력을 이닝별로 재보면 성격이 분명히 드러난다.
+**측정 시점을 반드시 밝혀야 한다** — 같은 경기라도 어디서 재느냐에 따라 20포인트가 갈린다.
 
-    이닝    1     2     3     4     5     6     7     8     9   | 전체
-    개선  99.7  98.8  96.8  93.9  90.9  69.6  40.3  18.1   6.7 | 69.0
-    이전  99.8  82.1  66.2  79.6  79.9  69.8  60.3  43.6  21.8 | 67.9
+  (A) 의사결정 시점 — 이 알고리즘이 실제로 보는 값(이번 이닝 수비소모 반영 전)
 
-즉 이건 "팀 전체를 덜 지치게" 만든 게 아니다(전체 평균은 69.0 대 67.9로 사실상 같다).
+    이닝       1     2     3     4     5     6     7     8     9 | 전체
+    현재    100.0 100.0 100.0 100.0 100.0  98.8  87.8  61.5  52.3 | 89.1
+    이전    100.0  99.9  98.9  99.6  99.3  98.6  94.5  85.4  64.6 | 93.5
+
+  (B) 수비 수행 후 — 엔진이 그 이닝의 3~5스윙을 부과한 뒤(half_start 기준)
+
+    이닝       1     2     3     4     5     6     7     8     9 | 전체
+    현재     99.9  97.9  98.8  96.8  91.5  78.1  43.6  18.5   7.9 | 71.5
+    이전     99.8  77.6  68.0  82.8  79.1  70.6  62.3  39.0  24.1 | 68.1
+
+(30경기 미러링, '이전'은 체력 개정 전 버전 f141cf7 기준)
+
+(B)를 보면 이건 "팀 전체를 덜 지치게" 만든 게 아니다(전체 71.5 대 68.1로 큰 차이가 아니다).
 위에 적었듯 공급(283스윙)이 수요(372스윙)보다 적어서 총량은 줄일 수 없기 때문이다.
 바뀐 건 **체력을 언제·누구에게 쓰느냐**다. 초반 5이닝을 거의 100%로 굴리고,
-좋은 타자는 DH로 피신시킨다(DH 평균 OPS 0.882 대 수비 8자리 0.627).
+좋은 타자는 DH로 피신시킨다(DH 평균 OPS 0.853 대 수비 8자리 0.640).
 
-남은 과제: 대신 7~9회에 팀이 바닥난다(9회 6.7%). 승부처인 종반을 시체로 치르는 셈이라
+이번 개정(맞대결 기댓값)은 승패를 바꾸지 못했다. 홈/원정을 바꿔가며 붙인 320경기에서
+승점비율 0.488 ± 0.028(표준오차), 득점 1088 대 1066이다. 맞대결만 껐다 켠 200경기 비교도
+0.485 ± 0.035로 같은 결론이다. 위에 적은 대로 이 신호는 주전 9명을 뒤집는 크기가 아니라
+한계 자리를 가르는 타이브레이커이고, 승패는 여전히 체력 배분이 지배한다. 확실히 좋아진 건
+실행시간이다: 호출당 평균 0.132초 -> 0.053초. 맞대결 표가 2배로 커졌는데도 오히려 빨라졌는데,
+표를 전처리에서 한 번만 접고 offense_runs/stamina_cost를 캐싱했기 때문이다.
+
+체력배수 상한(1.45)도 400경기로 따로 재봤다: 0.478 ± 0.025로 역시 중립이다. 모델을 엔진에
+더 정확히 맞췄는데 성적은 그대로인 전형적인 사례다. 짐작되는 이유는, 상한을 빼먹은 쪽이
+"지친 투수는 한 이닝에 타자를 더 많이 상대하게 된다"는 빠진 항(이 평가함수는 이닝당 타석 수를
+EXP_PA_PER_INNING으로 고정한다)을 우연히 대신 메워주고 있었다는 것이다. 그래도 상한을 남긴
+이유는 이 파일의 원칙이 '엔진을 그대로 재현한다'이기 때문이다. 의심스러우면 FATIGUE_FACTOR_CAP을
+아주 크게 잡아 끈 채로 A/B 해 보면 된다.
+
+남은 과제: 대신 7~9회에 팀이 바닥난다(9회 7.9%, 의사결정 시점으로도 52%). 게다가 이번 개정
+뒤 종반 체력이 개정 전보다 더 낮아졌다(8회 61.5 대 85.4, 전체 89.1 대 93.5 — 위 A 기준).
+체력 수식 자체는 그대로지만, 상대 투수 배수를 '1명'에서 'P_j 가중 멱평균'으로 바꾸고
+FATIGUE_FACTOR_CAP을 넣은 것이 offense_runs를 통해 체력 기회비용과의 저울을 건드린 결과다.
+승패는 중립이라 당장 손해는 아니지만 다음 개선의 출발점으로 기록해 둔다.
+승부처인 종반을 시체로 치르는 셈이라
 여기가 다음 개선 지점이다. 예를 들어 종반용으로 몇 명을 아예 출전시키지 않고 아껴두는
 '예약(reserve)' 개념을 넣거나, 이닝별 레버리지(점수차·아웃카운트)를 기회비용에
 곱하는 식이 후보다. 단, FUTURE_COST_W를 그냥 키우는 방식은 격자탐색에서 효과가
 확인되지 않았다.
+
+상대 투수는 '한 명'이 아니라 '확률분포'다
+=========================================
+decide_lineup은 양 팀이 이닝 시작에 동시에 호출되므로 **이번 이닝에 누가 올라올지 알 수 없다.**
+context["opp_pitcher_pcode"]는 상대의 *직전* 이닝 투수이고, 1회에는 아예 None이다.
+그런데 matchups 표에는 1회부터 **상대 투수 전원 x 우리 타자 전원**이 들어 있다.
+이전 버전은 그 표를 직전 이닝 투수 1명으로 필터링해서 썼고, 그 결과 1회에는 맞대결을
+한 줄도 쓰지 못했다(표의 절반 이상을 버린 셈이다).
+
+이 버전은 필터링 대신 **기댓값**을 쓴다.
+
+    (1) 상대 투수 j가 이번 이닝에 등판할 확률 P_j 를 추정한다.
+          · 직전 이닝 투수 -> '잔류확률' p_stay
+              = (상대가 지금까지 얼마나 자주 투수를 이어 썼는가, 관측으로 온라인 추정)
+              x (한 이닝 더 던져도 쓸 만한 체력이 남았는가)
+          · 나머지 투수 -> "좋은 투수일수록 올라온다"는 softmax (온도 tau)
+          · 마지막에 균등분포를 eps만큼 섞는다 — 추정이 틀렸을 때의 손해 상한
+    (2) 타자 i의 사건확률을 P_j로 가중평균한다. 엔진의 블렌딩이 선형이라 정확히 접힌다.
+          r_i = sum_j P_j * [ w_ji*e_ji + (1-w_ji)*r0_i ] = (1-W_i)*r0_i + W_i*e_i
+          W_i = sum_j P_j * PA_ji/(PA_ji+15)        <- 엔진 축소상수(15)를 그대로 쓴다
+          e_i = sum_j P_j * w_ji * e_ji / W_i       <- P가중 경험분포
+    (3) 상대 투수의 체력배수도 같은 P_j로 평균낸다. 단 득점식이 (타자배수/투수배수)^0.86
+        에만 의존하므로 산술평균이 아니라 **멱평균**(지수 -0.86)이 맞다.
+
+핵심은 (2)의 마지막 등식이다. 표 전체를 전처리에서 **타자당 (W_i, e_i) 한 쌍**으로 접어두면
+탐색 루프(hot path)는 예전과 똑같이 "타자당 사건확률 벡터 1개"만 본다 — 즉 표가 2배로
+커져도 탐색 비용은 0원이다. 상대 투수 20여 명을 평가함수 안에서 매번 합산하는 구현은
+호출 수가 수만 번이라 10초 제한을 위협한다. **비용은 반드시 전처리에 가둬야 한다.**
+
+효과의 크기는 정직하게 적어 둔다. 10개 팀 전타자를 1회 기준으로 재보면 맞대결이 타자의
+타석당 가치를 움직이는 폭은 표준편차 0.0065런(범위 -0.025 ~ +0.035)이다. 9번째와 10번째
+타자의 가치 간격이 평균 0.0029런이니 딱 그 두 배 남짓 — **주전 9명을 뒤집는 신호가 아니라
+한계 자리를 가르는 타이브레이커**다. 대신 1회처럼 정보가 아예 없던 구간이 메워지는 게
+실질적인 이득이다. MATCHUP_TRUST = 0 으로 두면 맞대결 반영만 통째로 꺼서
+(등판확률 모형과 체력 평균은 그대로 둔 채) "켠 쪽/끈 쪽"을 같은 시드로 비교할 수 있다.
 
 이닝 선발 규칙: decide_lineup은 이닝마다 팀당 한 번 호출되며 {"defense": [10명],
 "offense": [9명]}을 반환한다. defense는 [내야x4, 외야x3, 포수, DH, 투수] 순서,
@@ -106,6 +175,23 @@ PRIOR = {"BB": 0.090, "HBP": 0.015, "1B": 0.170, "2B": 0.045,
          "3B": 0.005, "HR": 0.025, "SO": 0.190, "OUT": 0.460}
 PRIOR_PA, PRIOR_TBF = 60.0, 80.0
 MATCHUP_SHRINK_PA = 15.0                       # 엔진과 동일
+FATIGUE_FACTOR_CAP = 1.45                      # 체력배수의 최종 상한(하한은 역수). 엔진과 동일
+
+# -- 상대 투수 등판확률 추정 ------------------------------------------
+# 이번 이닝에 상대가 누구를 올릴지는 알 수 없다. 그래서 '1명 찍기'가 아니라 분포로 둔다.
+OPP_INNING_PITCHES = 14.0     # 하프이닝당 상대 투구수. 실측 평균 13.5·중앙값 12이라
+                              # EXP_PA_PER_INNING*PITCHES_PER_PA(=15.1)보다 약간 낮게 잡았다.
+                              # 목표치가 15 안팎인 불펜은 이 1~2구 차이로 체력배수가 크게 갈린다.
+OPP_SOFTMAX_TAU = 0.15        # "좋은 투수일수록 올라온다"의 강도(런 단위). 작을수록 1명에 몰린다.
+OPP_EPSILON = 0.15            # 균등분포를 이만큼 섞는다 (추정이 틀렸을 때의 손해 상한)
+OPP_STAY_A, OPP_STAY_B = 1.2, 1.0   # 잔류비율의 Beta 사전분포. 평균 0.55 (실측 0.50~0.57)
+OPP_STAY_FLOOR = 0.25         # 체력이 바닥나도 안 바꾸는 상대가 있으므로 잔류확률을 0으로 두지 않는다
+OPP_STAY_CAP = 0.85           # 반대로 확신도 금물 — 상한도 둔다
+MATCHUP_TRUST = 1.0           # 맞대결 반영 강도. 0이면 맞대결만 통째로 off (A/B 비교용 스위치.
+                              # 등판확률·체력 평균은 영향받지 않는다)
+MATCHUP_W_CAP = 0.5           # 쌍별 축소가중치 상한. 동봉 데이터의 최대 PA가 15라
+                              # PA/(PA+15)=0.5로 상한과 정확히 같다(20013행 중 5행). 즉 현재
+                              # 데이터에서 이 상한은 '걸리지만 값을 바꾸지는 않는' 안전장치다.
 
 # 수비 기회 배분(타구가 그 자리로 갈 확률)과 실책 1개의 실점 비용
 CHANCE_SHARE = (0.12, 0.12, 0.12, 0.12, 0.15, 0.15, 0.15, 0.02)   # 내야4·외야3·포수
@@ -209,34 +295,35 @@ def _event_rates(row, is_pitcher):
     return {ev: v / total for ev, v in vals.items()}
 
 
-def _blend_matchup(rate, mrow):
-    """맞대결 실적이 있으면 표본 크기에 비례해 섞는다 (엔진과 동일한 축소상수)."""
-    if mrow is None:
+def _blend_pooled(rate, entry):
+    """맞대결 실적을 섞는다. entry = (W, ebar) = build_pooled_matchup()이 미리 접어둔 한 쌍.
+
+    엔진은 투수가 정해진 뒤 rate <- w*e + (1-w)*rate (w = PA/(PA+15))를 쓴다.
+    우리는 이번 이닝 투수가 누구일지 모르므로 그 블렌딩 결과를 등판확률 P_j로 평균내야 하는데,
+    블렌딩이 rate에 대해 선형이라 평균이 정확히 같은 모양으로 접힌다:
+        sum_j P_j*[w_ji*e_ji + (1-w_ji)*rate] = (1 - W)*rate + W*ebar
+    즉 '투수 20여 명에 대한 합산'이 '가중치 1개 + 분포 1개'로 줄어든다 (근사가 아니라 항등식)."""
+    if entry is None:
         return rate
-    pa = float(_num(mrow.get("PA"), 0.0))
-    if pa <= 0:
+    w, ebar = entry
+    if w <= 0.0:
         return rate
-    h = float(_num(mrow.get("H"), 0.0))
-    d = float(_num(mrow.get("2B"), 0.0))
-    t = float(_num(mrow.get("3B"), 0.0))
-    hr = float(_num(mrow.get("HR"), 0.0))
-    bb = float(_num(mrow.get("BB"), 0.0))
-    hbp = float(_num(mrow.get("HBP"), 0.0))
-    so = float(_num(mrow.get("SO"), 0.0))
-    emp = {"BB": bb / pa, "HBP": hbp / pa, "1B": max(h - d - t - hr, 0.0) / pa, "2B": d / pa,
-           "3B": t / pa, "HR": hr / pa, "SO": so / pa,
-           "OUT": max(pa - h - bb - hbp - so, 0.0) / pa}
-    w = pa / (pa + MATCHUP_SHRINK_PA)
-    mixed = {ev: w * emp[ev] + (1 - w) * rate[ev] for ev in EVENTS}
+    mixed = {ev: w * ebar[ev] + (1.0 - w) * rate[ev] for ev in EVENTS}
     total = sum(mixed.values())
     return {ev: v / total for ev, v in mixed.items()}
 
 
 def _runs_per_pa(rate, batter_mult, pitcher_mult):
     """체력을 엔진과 똑같은 방식으로 확률에 반영한 뒤 기대 득점가치를 낸다.
-    유리사건 × (타자배수/투수배수)^0.86, 불리사건(SO/OUT)은 그 역수, 그리고 재정규화."""
+    유리사건 × (타자배수/투수배수)^0.86, 불리사건(SO/OUT)은 그 역수, 그리고 재정규화.
+
+    엔진은 이 배수를 [1/1.45, 1.45]로 자른다(probability.FATIGUE_FACTOR_CAP). 상한이 없으면
+    완전히 탈진한 투수(체력배수 0.27)를 만났을 때 배수를 3.08로 계산하게 되는데 엔진은
+    1.45까지만 준다 — 2.1배 과대평가다. 그러면 '지친 투수를 때리는' 가치가 부풀어
+    체력 기회비용과의 저울이 망가지므로 여기서도 똑같이 자른다."""
     factor = (batter_mult / max(pitcher_mult, 1e-3)) ** FATIGUE_ALPHA
-    inv = 1.0 / max(factor, 1e-3)
+    factor = min(max(factor, 1.0 / FATIGUE_FACTOR_CAP), FATIGUE_FACTOR_CAP)
+    inv = 1.0 / factor
     adj = {ev: rate[ev] * (factor if ev in FAVORABLE else inv) for ev in EVENTS}
     total = sum(adj.values())
     return sum(RUN_VALUE[ev] * v / total for ev, v in adj.items())
@@ -298,31 +385,171 @@ def build_profiles(my_team: pd.DataFrame):
     return bat, pit
 
 
-def opponent_pitcher_mult(opponent_team: pd.DataFrame, pcode):
-    """이번 이닝 상대 투수(직전 이닝 기준)의 예상 체력배수. 모르면 1.0(정상)으로 둔다."""
-    if pcode is None or opponent_team is None or opponent_team.empty:
-        return 1.0
-    rows = opponent_team[opponent_team["pCode"] == pcode]
-    if rows.empty:
-        return 1.0
-    row = rows.iloc[0]
-    pitches = float(_num(row.get("pitch_count"), 0.0))
-    target = _num(row.get("pitch_target"), None)
-    if target is None:
-        target = float(_num(row.get("NP_per_G"), 20.0)) * 0.70
-    # 이닝 중반까지 더 던진다고 보고 선반영
-    half_inning = 0.5 * EXP_PA_PER_INNING * PITCHES_PER_PA
-    return _sigmoid_mult(pitches + half_inning, max(float(target), 10.0),
-                         PIT_STEEPNESS, PIT_MAX_DROP)
+def opp_pitcher_profiles(opponent_team: pd.DataFrame):
+    """상대 투수 **전원**의 프로필. 키 이름을 build_profiles의 투수 쪽과 똑같이 맞춰
+    pit_mult()를 그대로 재사용할 수 있게 한다.
+
+    opponent_team에는 상대 투수 전원의 시즌기록과 현재 투구수/목표치가 이미 전부 들어 있다.
+    '맞대결만 1명으로 막혀 있던' 예전 구조가 오히려 예외였던 셈이다."""
+    prof = {}
+    if opponent_team is None or opponent_team.empty:
+        return prof
+    for row in opponent_team.to_dict("records"):
+        if row.get("role") != "투수":
+            continue
+        pitches = float(_num(row.get("pitch_count"), 0.0))
+        target = _num(row.get("pitch_target"), None)
+        if target is None:                              # 결측 방어 (build_profiles와 같은 순서)
+            health = float(_num(row.get("health_pct"), 100.0))
+            base = float(_num(row.get("NP_per_G"), 20.0)) * 0.70
+            target = _target_from_health(health, PIT_MAX_DROP, pitches, PIT_STEEPNESS) or base
+        prof[int(row["pCode"])] = {
+            "rate": _event_rates(row, True),
+            "pitches": pitches,
+            "pitch_target": max(float(target), 10.0),
+        }
+    return prof
 
 
-def build_matchup_index(matchups: pd.DataFrame, pitcher_pcode):
-    if matchups is None or matchups.empty or pitcher_pcode is None:
-        return {}
-    if "pitcherPCode" not in matchups.columns:
-        return {}
-    sub = matchups[matchups["pitcherPCode"] == pitcher_pcode]
-    return {int(r["hitterPCode"]): r for r in sub.to_dict("records")}
+def opp_start_probability(prof, context):
+    """상대 투수별 '이번 이닝 등판확률' P_j 와, 그걸로 평균낸 체력배수 p_bar.
+
+    P_j는 세 조각의 합성이다.
+      (a) 품질 softmax  : 이번 이닝을 잘 막을 수 있는 투수일수록 올라올 확률이 높다.
+      (b) 잔류확률      : 직전 이닝 투수가 그대로 남을 확률.
+                          = (상대가 지금까지 투수를 얼마나 이어 썼는가 — 관측으로 온라인 추정)
+                          x (한 이닝 더 던질 체력이 남았는가)
+      (c) 균등 바닥 eps : (a)(b)가 통째로 틀렸을 때의 손해를 막는 보험.
+
+    context["opp_pitcher_pcode"]를 버리는 게 아니라 **하드필터에서 사전확률로 강등**하는 것이다.
+    직전 이닝 투수는 여전히 가장 강한 단일 예측자다 (전략에 따라 잔류비율 0.14~1.00, 평균 0.5).
+
+    반환 확률의 합은 1. 누적 순서가 프로세스마다 달라지지 않도록 **정렬된 정수 키**로만
+    순회한다 — 학생 함수는 매 호출 새 프로세스에서 실행되므로 해시 순서에 기대면 안 된다."""
+    codes = sorted(prof)
+    m = len(codes)
+    if m == 0:
+        return {}, 1.0
+    ip = OPP_INNING_PITCHES
+
+    # (a) 품질 점수 -> softmax. pitcher_value와 같은 3점 적분이되, 상대의 '남은 이닝 체력'까지
+    #     대신 걱정해 줄 필요는 없으므로 이번 이닝의 실점 억제력만 본다.
+    quality = {}
+    for p in codes:
+        pr = prof[p]
+        runs = 0.0
+        for frac in (1.0 / 6.0, 0.5, 5.0 / 6.0):
+            runs += _runs_per_pa(pr["rate"], 1.0, pit_mult(pr, ip * frac)) * (EXP_PA_PER_INNING / 3.0)
+        quality[p] = -runs
+    top = max(quality.values())
+    expo = {p: math.exp((quality[p] - top) / OPP_SOFTMAX_TAU) for p in codes}
+    z = sum(expo[p] for p in codes)
+    base = {p: expo[p] / z for p in codes}
+
+    prob = base
+    prev = context.get("opp_pitcher_pcode")              # 1회에는 None
+    prev = int(prev) if prev is not None and not pd.isna(prev) else None
+    if prev is not None and prev in prof:
+        # -- 상대의 교체 습관을 관측으로 추정한다 (Beta 사전분포 + 온라인 갱신) --
+        inning = int(_num(context.get("inning"), 1))
+        n = max(inning - 1, 0)                           # 상대가 이미 치른 수비 이닝 수
+        used = sum(1 for p in codes if prof[p]["pitches"] > 0.0)
+        used = max(used, 1) if n >= 1 else used          # n이닝을 치렀다면 최소 1명은 썼다
+        repeats = max(n - used, 0)                       # 같은 투수를 이어 쓴 횟수
+        stay_rate = (repeats + OPP_STAY_A) / (max(n - 1, 0) + OPP_STAY_A + OPP_STAY_B)
+
+        # 한 이닝 더 던져도 쓸 만한가 (탈진 바닥 1-PIT_MAX_DROP 을 0으로 놓고 정규화)
+        floor = 1.0 - PIT_MAX_DROP
+        feas = (pit_mult(prof[prev], ip) - floor) / (1.0 - floor)
+        feas = min(max(feas, 0.0), 1.0)
+        if prof[prev]["pitches"] - ip > prof[prev]["pitch_target"]:
+            feas = 1.0          # 이미 목표치를 넘긴 투수를 지난 이닝에 냈다 = 체력을 안 보는 상대
+        p_stay = stay_rate * (OPP_STAY_FLOOR + (1.0 - OPP_STAY_FLOOR) * feas)
+        if used == 1 and n >= 3:
+            p_stay = max(p_stay, 0.80)                   # 한 투수로 끝까지 가는 유형 확정
+        p_stay = min(max(p_stay, 0.03), OPP_STAY_CAP)
+
+        rest = 1.0 - base[prev]
+        if rest > 1e-9:                                  # 남은 확률을 품질 비율대로 나눠 준다
+            prob = {p: (p_stay if p == prev else (1.0 - p_stay) * base[p] / rest) for p in codes}
+
+    # (c) 균등 바닥. 상대가 일부러 기용을 섞어도 손해가 여기서 멈춘다.
+    prob = {p: (1.0 - OPP_EPSILON) * prob[p] + OPP_EPSILON / m for p in codes}
+    total = sum(prob[p] for p in codes)                  # 부동소수 오차만 정리
+    prob = {p: prob[p] / total for p in codes}
+
+    # 유효 체력배수: 기대득점이 (타자배수/투수배수)^ALPHA 에만 의존하므로 E[mult^-ALPHA]를
+    # 보존하는 **멱평균**이 맞다. 산술평균을 쓰면 지친 투수의 기여가 과소평가된다.
+    acc = 0.0
+    for p in codes:
+        acc += prob[p] * pit_mult(prof[p], ip * 0.5) ** (-FATIGUE_ALPHA)
+    return prob, acc ** (-1.0 / FATIGUE_ALPHA)
+
+
+def build_pooled_matchup(matchups: pd.DataFrame, prob, my_batters):
+    """맞대결 표 전체를 **우리 타자 1명당 (W, ebar) 한 쌍**으로 접는다.
+
+        W    = sum_j P_j * PA_ji/(PA_ji+15)   (풀링 가중치. 엔진 축소상수 15를 그대로 쓴다)
+        ebar = P_j 가중 경험 사건분포
+
+    유도는 _blend_pooled 참고. 표를 딱 한 번만 훑으므로 비용이 호출당 수 ms에 머문다.
+    W는 저절로 2차 축소가 걸린다: W = sum_j P_j*w_ji <= max_j w_ji. 누가 나올지 모를수록
+    맞대결이 알아서 덜 반영되는 셈이라, 여기에 축소를 한 번 더 걸면 신호만 죽는다.
+
+    주의: 이 표에는 '우리 투수 x 상대 타자' 블록도 함께 들어 있다. 반드시 **투수 쪽을 먼저**
+    걸러야 한다. 타자 쪽만 보고 걸러도 지금은 우연히 맞지만(우리 투수가 상대한 타자는
+    우리 타자가 아니므로), 로스터 처리가 조금만 바뀌면 우리 투수의 피안타 기록이
+    우리 타자의 성적으로 조용히 섞여 들어간다."""
+    pooled = {}
+    if matchups is None or matchups.empty or not prob or MATCHUP_TRUST <= 0.0:
+        return pooled
+    if "pitcherPCode" not in matchups.columns or "hitterPCode" not in matchups.columns:
+        return pooled
+    sub = matchups[matchups["pitcherPCode"].isin(set(prob))
+                   & matchups["hitterPCode"].isin(set(my_batters))]
+    if sub.empty:
+        return pooled
+
+    acc = {}
+    for r in sub.to_dict("records"):
+        pa = float(_num(r.get("PA"), 0.0))
+        if pa <= 0.0:
+            continue
+        pj = prob.get(int(r["pitcherPCode"]), 0.0)
+        # 쌍별 축소가중치는 엔진과 동일. 1~2타석짜리 표본이 분포를 통째로 흔들지 못한다.
+        w = pj * min(pa / (pa + MATCHUP_SHRINK_PA), MATCHUP_W_CAP) * MATCHUP_TRUST
+        if w <= 0.0:
+            continue
+        # AVG/OPS/SLG 같은 파생 컬럼은 쓰지 않는다 — PA가 1~2면 0.000/1.000으로 튄다.
+        h = float(_num(r.get("H"), 0.0))
+        d = float(_num(r.get("2B"), 0.0))
+        t = float(_num(r.get("3B"), 0.0))
+        hr = float(_num(r.get("HR"), 0.0))
+        bb = float(_num(r.get("BB"), 0.0))
+        hbp = float(_num(r.get("HBP"), 0.0))
+        so = float(_num(r.get("SO"), 0.0))
+        hitter = int(r["hitterPCode"])
+        ent = acc.get(hitter)
+        if ent is None:
+            ent = acc[hitter] = [0.0, {ev: 0.0 for ev in EVENTS}]
+        ent[0] += w
+        s = ent[1]
+        s["BB"] += w * bb / pa
+        s["HBP"] += w * hbp / pa
+        s["1B"] += w * max(h - d - t - hr, 0.0) / pa
+        s["2B"] += w * d / pa
+        s["3B"] += w * t / pa
+        s["HR"] += w * hr / pa
+        s["SO"] += w * so / pa
+        s["OUT"] += w * max(pa - h - bb - hbp - so, 0.0) / pa
+
+    for hitter in sorted(acc):
+        w_sum, s = acc[hitter]
+        if w_sum <= 1e-9:
+            continue
+        # ebar는 '자르지 않은' 합으로 나눠야 확률분포가 된다. 상한은 W에만 건다.
+        pooled[hitter] = (min(w_sum, 1.0), {ev: s[ev] / w_sum for ev in EVENTS})
+    return pooled
 
 
 # ---------------------------------------------------------------------
@@ -331,10 +558,12 @@ def build_matchup_index(matchups: pd.DataFrame, pitcher_pcode):
 class Evaluator:
     """모든 점수는 '기대 득점(런)' 단위다. 높을수록 좋다."""
 
-    def __init__(self, bat, pit, opp_mult, mindex, inning):
+    def __init__(self, bat, pit, opp_mult, pooled, inning):
         self.bat, self.pit = bat, pit
+        # opp_mult : 상대 투수 체력배수의 P_j 가중 멱평균 (1명 기준이 아니다)
+        # pooled   : {우리 타자 pCode: (W, ebar)} — 상대 투수 전원을 미리 접어둔 맞대결
         self.opp_mult = opp_mult
-        self.mindex = mindex
+        self.pooled = pooled
         # 남은 이닝이 많을수록 지금 체력을 태우는 게 비싸다. 9회엔 0 -> 전부 태운다.
         self.horizon = max(0, LAST_INNING - inning)
         # 앞으로 그 선수를 더 쓰게 될 이닝 수의 기댓값 = 기회비용의 크기
@@ -343,12 +572,14 @@ class Evaluator:
         self._rate_cache = {}
         self._value_cache = {}
         self._slot_cache = {}
+        self._off_cache = {}
+        self._cost_cache = {}
 
     # -- 타격 -------------------------------------------------------
     def _rate_vs_opp(self, pcode):
         cached = self._rate_cache.get(pcode)
         if cached is None:
-            cached = _blend_matchup(self.bat[pcode]["rate"], self.mindex.get(pcode))
+            cached = _blend_pooled(self.bat[pcode]["rate"], self.pooled.get(pcode))
             self._rate_cache[pcode] = cached
         return cached
 
@@ -362,9 +593,15 @@ class Evaluator:
 
     def offense_runs(self, pcode, exp_pa, extra_swings):
         """이번 이닝 그 선수의 기대 득점 기여.
-        체력은 이닝 중간 시점(소모의 절반이 진행된 시점)으로 평가한다."""
-        mult = bat_mult(self.bat[pcode], extra_swings * 0.5)
-        return exp_pa * _runs_per_pa(self._rate_vs_opp(pcode), mult, self.opp_mult)
+        체력은 이닝 중간 시점(소모의 절반이 진행된 시점)으로 평가한다.
+        타순 탐색에서만 2만 번 넘게 불리는데 인자 조합은 (9명 x 9타순)뿐이라 캐싱한다."""
+        key = (pcode, exp_pa, extra_swings)
+        cached = self._off_cache.get(key)
+        if cached is None:
+            mult = bat_mult(self.bat[pcode], extra_swings * 0.5)
+            cached = exp_pa * _runs_per_pa(self._rate_vs_opp(pcode), mult, self.opp_mult)
+            self._off_cache[key] = cached
+        return cached
 
     # -- 수비(실책 실점) --------------------------------------------
     def defense_runs_allowed(self, pcode, slot, extra_swings):
@@ -386,13 +623,20 @@ class Evaluator:
         여기서 큰 페널티가 붙는다 — health_pct를 보고 반응하는 것보다 한 박자 빠르다."""
         if self.future_innings <= 0.0 or extra_swings <= 0.0:
             return 0.0
+        key = (pcode, extra_swings)
+        cached = self._cost_cache.get(key)
+        if cached is not None:
+            return cached
         b = self.bat[pcode]
         drop = bat_mult(b, 0.0) - bat_mult(b, extra_swings)
         if drop <= 0.0:
+            self._cost_cache[key] = 0.0
             return 0.0
         # 그 선수의 '한 이닝치 타격 가치' × 앞으로 쓸 이닝 수 × 깎인 배수
         per_inning_value = abs(self._fresh_value(pcode)) * EXP_PA_PER_INNING / 9.0
-        return FUTURE_COST_W * self.future_innings * drop * per_inning_value
+        cost = FUTURE_COST_W * self.future_innings * drop * per_inning_value
+        self._cost_cache[key] = cost
+        return cost
 
     # -- 슬롯 하나의 순가치 -----------------------------------------
     def slot_value(self, pcode, slot, exp_pa):
@@ -534,8 +778,9 @@ def optimize_defense(bat, ev, rng, deadline):
 
 
 def optimize_pitcher(pit, ev):
-    """후보가 수십 명뿐이라 전수 비교가 무작위 탐색보다 빠르고 정확하다."""
-    return max(pit, key=ev.pitcher_value)
+    """후보가 수십 명뿐이라 전수 비교가 무작위 탐색보다 빠르고 정확하다.
+    sorted()로 감싸 동점일 때의 선택까지 고정한다(재현성)."""
+    return max(sorted(pit), key=ev.pitcher_value)
 
 
 def optimize_order(defense9, ev, start_index, rng, deadline):
@@ -585,12 +830,14 @@ def decide_lineup(my_team: pd.DataFrame, opponent_team: pd.DataFrame,
     bat, pit = build_profiles(my_team)
     inning = int(_num(context.get("inning"), 1))
     start_index = int(_num(context.get("batting_order_start_index"), 0)) % 9
-    opp_pitcher = context.get("opp_pitcher_pcode")
 
-    ev = Evaluator(bat, pit,
-                   opponent_pitcher_mult(opponent_team, opp_pitcher),
-                   build_matchup_index(matchups, opp_pitcher),
-                   inning)
+    # 상대 투수는 1명으로 찍지 않고 분포로 다룬다. 비용은 전부 여기(전처리)에서 끝난다 —
+    # 탐색 루프는 예전과 똑같이 타자당 사건확률 벡터 1개만 본다.
+    opp_prof = opp_pitcher_profiles(opponent_team)
+    opp_prob, opp_mult = opp_start_probability(opp_prof, context)
+    pooled = build_pooled_matchup(matchups, opp_prob, set(bat))
+
+    ev = Evaluator(bat, pit, opp_mult, pooled, inning)
 
     # 1) 수비 9칸 배정 (체력 기회비용 포함)
     defense9 = optimize_defense(bat, ev, rng, deadline)

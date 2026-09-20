@@ -30,9 +30,18 @@ opponent_team : pandas.DataFrame
 
 matchups : pandas.DataFrame
     투수-타자 맞대결 통산 기록 (pitcherPCode, hitterPCode, AVG, PA, H, HR, SO ... 등).
-    "우리 전체 투수 x 상대 전체 타자" 조합과 "상대 직전 이닝 투수 x 우리 전체 타자" 조합이
+    "우리 전체 투수 x 상대 전체 타자" 조합과 "상대 전체 투수 x 우리 전체 타자" 조합이
     담겨 있습니다. 기록이 없는 조합은 그냥 이 표에 나타나지 않습니다 — 즉 없으면 개인 스탯
     기반으로 시뮬레이션 엔진이 알아서 처리하니, 학생 알고리즘은 이 표에 있는 것만 참고하면 됩니다.
+    **1회부터** 상대 투수 전원(선발+불펜)이 조회 대상에 들어갑니다. 다만 '대상'과 '실제 행'은
+    다릅니다 — 통산 맞대결이 한 번도 없는 조합은 행 자체가 없어서, 실제로 행이 붙는 상대 투수는
+    로스터의 평균 76%(대진에 따라 59~90%)입니다. 즉 등판 후보 중 일부는 맞대결 정보가 아예
+    없으니, 그런 투수는 개인 시즌기록으로만 평가해야 합니다.
+    이번 이닝에 누가 등판할지는 알 수 없으므로, 특정 투수 1명만 보지 말고 등판 후보 전체에 대한
+    기댓값(예: PA 가중평균, 체력·불펜 잔여로 가중)으로 다루세요.
+    조회용 dict를 만들 때는 반드시 (pitcherPCode, hitterPCode) **두 개를 함께 키로** 쓰세요.
+    한 타자에 상대 투수 여러 명(중앙값 10명, 최대 24명)의 행이 붙으므로 타자 pCode 단독 키로
+    만들면 엉뚱한 투수의 기록을 집어옵니다.
 
 호출 시점 (중요)
 --------------
@@ -46,6 +55,9 @@ matchups : pandas.DataFrame
 
 양 팀 명단을 이닝 시작에 동시에 정하므로, **이번 이닝에 상대할 투수/포수는 아직 알 수 없습니다.**
 context의 opp_pitcher_pcode / opp_catcher_pcode는 "상대의 직전 이닝 수비" 기준이며 1회에는 None입니다.
+이 값은 맞대결 표의 범위를 고르는 열쇠가 아니라 **직전 이닝 투수가 누구였는지 알려주는 힌트**일
+뿐입니다 (matchups에는 상대 투수 전원이 이미 들어 있습니다). 그 투수가 이번 이닝에도 그대로
+올라온다고 단정하기보다, 등판 후보 전원에 대한 기댓값으로 평가하는 편이 낫습니다.
 
 context : dict
     {
@@ -59,6 +71,7 @@ context : dict
       "opp_prev_offense": [pCode,...] | None,  # 상대 팀 직전 이닝 타순
       "opp_prev_defense": [pCode,...] | None,  # 상대 팀 직전 이닝 수비 배치
       "opp_pitcher_pcode": int | None,      # 상대 직전 이닝 투수 (opp_prev_defense[9]). 1회엔 None
+                                            #   (matchups는 상대 투수 전원을 담으므로 이건 힌트일 뿐)
       "opp_catcher_pcode": int | None,      # 상대 직전 이닝 포수 (opp_prev_defense[7]). 1회엔 None
       "time_budget_sec": 10.0,              # 이 함수에 주어진 제한시간(초). 초과 시 폴백 처리됨
     }
@@ -167,9 +180,20 @@ def team_status_dataframe(league: LeagueData, team: Team, roster_state: GameRost
 
 
 def matchup_dataframe(league: LeagueData, pitcher_pcodes: List[int], hitter_pcodes: List[int]) -> pd.DataFrame:
+    # 반드시 matchup_index(dict, CSV 행 순서로 삽입됨)를 순회하고 set은 멤버십 검사에만 쓴다.
+    # set을 순회하는 방식("for p in p_set: for h in h_set")으로 바꾸면 행 순서가 달라지고,
+    # 학생 알고리즘의 동점 처리를 통해 같은 seed의 경기 결과까지 바뀐다.
+    #
+    # 주의 — 이건 '프로세스마다 달라지는' 문제가 아니다. 키가 (int, int)라 PYTHONHASHSEED의
+    # 영향을 받지 않아(정수는 해시 랜덤화 대상이 아님) set 순회도 프로세스 간에는 재현된다.
+    # 실측: 네 가지 PYTHONHASHSEED에서 set 순회 결과 해시가 전부 동일했고, 다만 dict 순서와는
+    # 달랐다. 따라서 tools/verify.py의 'PYTHONHASHSEED에서도 동일 결과' 검사는 이 변경을
+    # 잡아내지 못한다. 과거 결과와 조용히 어긋나는 쪽이라 오히려 더 위험하니 손대지 말 것.
     p_set, h_set = set(int(p) for p in pitcher_pcodes), set(int(h) for h in hitter_pcodes)
     rows = [row for (p, h), row in league.matchup_index.items() if p in p_set and h in h_set]
     if not rows:
+        # 실제 경기에서는 1회부터 양 팀 투수진 전원이 들어가 사실상 비지 않는다.
+        # 이 폴백은 빈 인자로 부르는 테스트/벤치마크용 경로다 (컬럼 스키마는 실제 데이터와 동일).
         return pd.DataFrame(columns=["pitcherPCode", "hitterPCode", "AVG", "PA", "AB", "H", "2B", "3B", "HR",
                                       "RBI", "BB", "HBP", "SO", "SLG", "OBP", "OPS"])
     return pd.DataFrame(rows)

@@ -143,12 +143,18 @@ class Game:
     def _decide(self, team: Team, opponent: Team, inning: int, start_index: int,
                 opp_pitcher: Optional[int], opp_catcher: Optional[int]):
         """이닝 시작에 한 팀의 decide_lineup을 한 번 호출해 (offense 9, defense 10)를 받는다.
-        opp_pitcher/opp_catcher는 상대의 '직전 이닝' 수비 기준 (1회엔 None)."""
+        opp_pitcher/opp_catcher는 상대의 '직전 이닝' 수비 기준 (1회엔 None).
+        맞대결 표(matchups)에는 상대 투수 '전원'을 담고, opp_pitcher/opp_catcher는 context 힌트로만 쓴다."""
         my_df = team_status_dataframe(self.league, team, self.roster_state)
         opp_df = team_status_dataframe(self.league, opponent, self.roster_state)
+        # 맞대결 표는 양 팀 투수진 '전원' x 양 팀 타자 전원으로 만든다 — 이번 이닝에 상대가
+        # 누구를 올릴지는 양 팀이 동시에 명단을 정하므로 알 수 없고 1회엔 직전 이닝 투수조차
+        # 없다. 상대 투수진의 시즌기록/체력은 opponent_team에 이미 전부 보이므로 맞대결만
+        # 1명으로 막아둘 이유가 없다. 등판 불확실성은 학생이 후보 투수 전체에 대한 기댓값으로
+        # 다루게 한다. (같은 팀 투수-타자 맞대결 행은 데이터에 존재하지 않아 잡행이 섞이지 않음)
         mu_df = matchup_dataframe(
             self.league,
-            list(team.pitcher_pcodes) + ([opp_pitcher] if opp_pitcher else []),
+            list(team.pitcher_pcodes) + list(opponent.pitcher_pcodes),
             list(opponent.batter_pcodes) + list(team.batter_pcodes))
 
         my_prev = self.prev_lineup[team.name]

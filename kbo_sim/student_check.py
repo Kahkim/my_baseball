@@ -263,11 +263,11 @@ def smoke_test(path: str, league: LeagueData, team_name: str, opponent_name: Opt
     my_df = team_status_dataframe(league, my, rs)
     opp_df = team_status_dataframe(league, opp, rs)
 
-    from .student_api import default_defense_lineup
-    opponent_lineup = default_defense_lineup(opp)
     out = {"team": team_name, "opponent": opponent_name, "cases": [], "ok": True}
 
-    mu = matchup_dataframe(league, list(my.pitcher_pcodes) + [opponent_lineup[9]],
+    # 실제 경기(game.py _decide)와 똑같이 양 팀 투수진 '전원'으로 맞대결 표를 만든다.
+    # 사전검사가 실제 경기보다 좁은 표를 주면 "통과했는데 경기에서 터지는" 제출물이 나온다.
+    mu = matchup_dataframe(league, list(my.pitcher_pcodes) + list(opp.pitcher_pcodes),
                            list(opp.batter_pcodes) + list(my.batter_pcodes))
     ctx = {"inning": 1, "half": "bottom", "my_score": 0, "opponent_score": 0, "outs": 0,
            "batting_order_start_index": 0,

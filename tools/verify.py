@@ -32,8 +32,11 @@ from kbo_sim.match import Contestant, build_series_schedule
 from kbo_sim.models import GameRosterState, build_team
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-GA = os.path.join(BASE, "examples", "example_ga_lineup.py")
-RAND = os.path.join(BASE, "examples", "baseline_random_algorithm.py")
+# 저장소에 실제로 존재하는 예제만 쓴다. 없는 파일을 가리키면 두 팀 모두 매 이닝
+# FileNotFoundError -> algo_fallback 으로 떨어지고, 폴백 라인업은 당연히 결정적이라
+# [3]의 재현성 검사가 학생 코드를 한 줄도 실행하지 않은 채 초록불이 된다(공회전).
+TABU = os.path.join(BASE, "examples", "example_tabu_lineup.py")
+NAIVE = os.path.join(BASE, "examples", "strategy_naive_best.py")
 
 results = []
 
@@ -105,7 +108,7 @@ def main():
     # 3. 스텝 == 배치 --------------------------------------------------
     print("[3] 스텝 실행 == 배치 실행 (같은 시드)")
     home, away = build_team(ld, "KT"), build_team(ld, "삼성")
-    paths = {"KT": GA, "삼성": RAND}
+    paths = {"KT": TABU, "삼성": NAIVE}
     g1 = Game(ld, home, away, paths, seed=4242)
     r1 = g1.run()
     g2 = Game(ld, home, away, paths, seed=4242)
@@ -123,7 +126,7 @@ def main():
         "from kbo_sim.data_pipeline import load_league_data;"
         "from kbo_sim.models import build_team;from kbo_sim.game import Game;"
         "ld=load_league_data();h=build_team(ld,'KT');a=build_team(ld,'삼성');"
-        "g=Game(ld,h,a,{'KT':%r,'삼성':%r},seed=4242);print(json.dumps(g.run()))" % (BASE, GA, RAND)
+        "g=Game(ld,h,a,{'KT':%r,'삼성':%r},seed=4242);print(json.dumps(g.run()))" % (BASE, TABU, NAIVE)
     )
     outs = []
     for hs in ("0", "12345"):
@@ -195,7 +198,7 @@ def main():
         hit = any(needle in m for m in bucket)
         check(f"{key} 검출", hit, (bucket[0][:60] + "…") if bucket else "검출 실패")
 
-    for good in (GA, RAND, os.path.join(BASE, "examples", "student_algorithm_template.py")):
+    for good in (TABU, NAIVE, os.path.join(BASE, "examples", "student_algorithm_template.py")):
         rep = full_check(good, ld, "한화", "LG", 10.0)
         check(f"정상 예제 통과: {os.path.basename(good)}", rep["ok"],
               f"오류{len(rep['errors'])} 경고{len(rep['warnings'])} "
@@ -215,7 +218,7 @@ def main():
             f.write(src)
     for key in files:
         h, a = build_team(ld, "NC"), build_team(ld, "롯데")
-        g = Game(ld, h, a, {"NC": os.path.join(tmp, key + ".py"), "롯데": RAND},
+        g = Game(ld, h, a, {"NC": os.path.join(tmp, key + ".py"), "롯데": NAIVE},
                  seed=11, timeout_sec=2, max_innings=2)
         g.run()
         fb = [e for e in g.events if e["type"] == "algo_fallback" and e["team"] == "NC"]
@@ -226,8 +229,8 @@ def main():
 
     # 5. 대진표 --------------------------------------------------------
     print("[5] 3연전 대진표")
-    a = Contestant("김학생", GA, "삼성")
-    b = Contestant("이학생", RAND, "KT")
+    a = Contestant("김학생", TABU, "삼성")
+    b = Contestant("이학생", NAIVE, "KT")
     s1 = build_series_schedule(a, b, random.Random(99))
     s2 = build_series_schedule(a, b, random.Random(99))
     check("같은 시드 → 같은 대진",
